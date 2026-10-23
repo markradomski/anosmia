@@ -26,6 +26,8 @@ export interface Wine {
 export interface Entry {
   id: string; wine: Wine | null; title?: string | null; photo: boolean; date: string
   obs: Obs; notes: string; enjoy: number | null
+  /** Saved from the built-in Sample tasting rather than tasted by the user. */
+  sample?: boolean
 }
 export interface Slot { wine: Wine | null; name: string | null; photo: boolean }
 export interface AbDraft {
@@ -59,7 +61,11 @@ export interface State {
   toast: string
 }
 
-export interface Props { device?: Device | string; startScreen?: Screen | string }
+export interface Props {
+  device?: Device | string; startScreen?: Screen | string
+  /** Demo mode: the prototype's sample journal, in memory only. */
+  demo?: boolean
+}
 
 type Timer = ReturnType<typeof setTimeout>
 type Change = ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
@@ -163,6 +169,8 @@ export class AnosmiaLogic extends DCLogic<Props, State> {
       { id: 'e1', wine: w('moons'), photo: true, date: '6 Sep 2026', obs: { sweet: 4, acid: 1, tannin: 'none', body: 4, warm: 3, finish: 4 }, notes: 'Syrup with a pension.', enjoy: 5 }
     ];
   }
+  /** Stand-in so screens that need an entry can render (hidden) while the journal is empty. */
+  blankEntry(): Entry { return { id: '', wine: null, title: null, photo: false, date: '', obs: this.emptyObs(), notes: '', enjoy: null }; }
   journalNow() { return this.state.journal || this.seed(); }
   emptyObs(): Obs { return { sweet: null, acid: null, tannin: null, body: null, warm: null, finish: null }; }
   blank(): Partial<State> {
@@ -312,6 +320,7 @@ export class AnosmiaLogic extends DCLogic<Props, State> {
   save() {
     const st = this.state; const J = this.journalNow(); const id = 'n' + Date.now();
     const e: Entry = { id: id, wine: st.wine, title: st.wine ? null : (st.title || 'Unnamed wine'), photo: st.photo, date: this.today(), obs: Object.assign({}, st.obs), notes: st.notes.trim(), enjoy: st.enjoy };
+    if (st.sample) e.sample = true;
     const rep = st.repeatOf;
     this.setState(Object.assign(this.blank(), { journal: [e].concat(J), lastSaved: id, screen: rep ? 'compare' : 'journal', cmp: rep ? [rep, id] : st.cmp, selecting: false, sel: [] }));
     this.toast(rep ? 'Saved. Then and now, side by side.' : 'Saved. Your palate has been noted.');
@@ -603,7 +612,7 @@ export class AnosmiaLogic extends DCLogic<Props, State> {
     });
 
     /* entry */
-    const E = J.find(e => e.id === st.entryId) || J[0];
+    const E = J.find(e => e.id === st.entryId) || J[0] || this.blankEntry();
     const eid = this.ident(E);
     const ent = { tile: this.tileFor(E.wine, E.photo, 358), title: eid.title, sub: eid.long, date: E.date, notes: E.notes, hasNotes: !!E.notes,
       enjoy: E.enjoy ? this.enjoyLabels()[E.enjoy - 1] : 'Not rated', hidden: !st.reveal, shown: !!st.reveal,
@@ -612,8 +621,8 @@ export class AnosmiaLogic extends DCLogic<Props, State> {
     /* compare */
     const CA = '#5A1427', CB = '#A66A0A';
     const pair = st.cmp || ['e2', 'e4'];
-    const A = J.find(e => e.id === pair[0]) || J[0];
-    const B = J.find(e => e.id === pair[1]) || J[1];
+    const A = J.find(e => e.id === pair[0]) || J[0] || this.blankEntry();
+    const B = J.find(e => e.id === pair[1]) || J[1] || this.blankEntry();
     const ia = this.ident(A), ib = this.ident(B);
     const head = (e: Entry, id: ReturnType<AnosmiaLogic['ident']>, color: string, side: string) => ({ tile: this.tileFor(e.wine, e.photo, 54), fp: this.fp(e.obs, color, 0.8), title: id.title, sub: id.sub, date: e.date, side: side,
       key: this.markStyle(side, 18, false), enjoy: e.enjoy ? this.enjoyLabels()[e.enjoy - 1] : 'Not rated',
@@ -903,7 +912,7 @@ export class AnosmiaLogic extends DCLogic<Props, State> {
       jN: J.length, sN: SS.length, sessPal: sessPal, sessCards: sessCards, noSessions: SS.length === 0,
       resumeAB: abInProgress && scr === 'journal', resumeText: 'Unfinished A vs B · ' + abAnswered + ' of 6 answered',
       resume: () => this.setState({ screen: abAnswered === 0 ? 'abSetup' : 'abRecord' }),
-      hasToast: !!st.toast, toast: st.toast,
+      hasToast: !!st.toast, toast: st.toast, isDemo: !!this.props.demo,
       frameW: dims[0], frameH: dims[1]
     };
   }

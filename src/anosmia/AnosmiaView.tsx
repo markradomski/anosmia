@@ -1,5 +1,6 @@
 // Generated from the Anosmia prototype by scripts/extract-prototype.py.
 // Markup, bindings and inline styles are carried over unchanged.
+// Hand-maintained since Phase 1: re-running the extractor overwrites edits made here.
 import { Fragment } from 'react'
 import { css } from '../dc/css'
 import type { Vals } from './AnosmiaLogic'
@@ -477,7 +478,9 @@ export function AnosmiaView({ v }: { v: Vals }) {
                   ))}
                 </div>
                 {" "}
-                <p className="f-mono" style={{ fontSize: "9.5px", color: "#7A6A64", margin: "22px 0 0", lineHeight: "1.6" }}>Sample entries and ratings are illustrative.</p>
+                {v.isDemo ? (
+                  <p className="f-mono" style={{ fontSize: "9.5px", color: "#7A6A64", margin: "22px 0 0", lineHeight: "1.6" }}>Sample entries and ratings are illustrative.</p>
+                ) : null}
                 {" "}
               </>
             ) : null}

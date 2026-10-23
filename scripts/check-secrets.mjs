@@ -1,9 +1,13 @@
 #!/usr/bin/env node
 // Scans files git would commit for credential-shaped content (tokens, JWTs, session caches).
 // Filenames alone don't catch dumps (one arrived as "wine-preferences.json"), so this checks contents.
-// Usage: node scripts/check-secrets.mjs   (exit 1 when anything matches)
+// Usage: node scripts/check-secrets.mjs            every file git would commit (tracked + untracked, not ignored)
+//        node scripts/check-secrets.mjs --staged   only what is staged, as staged (used by the pre-commit hook)
+// Exits 1 when anything matches.
 import { execFileSync } from 'node:child_process'
 import { readFileSync, statSync } from 'node:fs'
+
+const staged = process.argv.includes('--staged')
 
 const PATTERNS = [
   ['JSON web token', /eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/],
@@ -14,14 +18,18 @@ const PATTERNS = [
   ['private key', /-----BEGIN [A-Z ]*PRIVATE KEY-----/],
 ]
 
-const files = execFileSync('git', ['ls-files', '-co', '--exclude-standard'], { encoding: 'utf8' })
+const git = (...args) => execFileSync('git', args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
+const files = (staged ? git('diff', '--cached', '--name-only', '--diff-filter=ACMR') : git('ls-files', '-co', '--exclude-standard'))
   .split('\n').filter(Boolean)
 let found = 0
 for (const file of files) {
   let text
   try {
-    if (statSync(file).size > 20_000_000) continue
-    text = readFileSync(file, 'utf8')
+    if (staged) text = git('show', `:${file}`)
+    else {
+      if (statSync(file).size > 20_000_000) continue
+      text = readFileSync(file, 'utf8')
+    }
   } catch {
     continue
   }
@@ -36,4 +44,4 @@ if (found) {
   console.error(`\n${found} possible secret(s). Remove them, or move local captures into private/.`)
   process.exit(1)
 }
-console.log(`No credential-shaped content in ${files.length} files.`)
+console.log(`No credential-shaped content in ${files.length} ${staged ? 'staged ' : ''}files.`)

@@ -16,6 +16,8 @@
   },
   "ignorePatterns": [
     "references/**",
-    "dist/**"
+    "dist/**",
+    "test-results/**",
+    "playwright-report/**"
   ]
 }
