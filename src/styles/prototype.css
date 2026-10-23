@@ -1,0 +1,30 @@
+/* Global CSS from the Anosmia prototype, verbatim. */
+body{margin:0;background:#F5ECD7}
+a{color:#5A1427}a:hover{color:#1E1416}
+.f-ui{font-family:'Bricolage Grotesque',system-ui,sans-serif}
+.f-disp{font-family:'Fraunces',Georgia,serif;font-variation-settings:'SOFT' 60,'WONK' 1}
+.f-mono{font-family:'DM Mono',ui-monospace,monospace;letter-spacing:.1em;text-transform:uppercase}
+.grain{background-image:radial-gradient(rgba(30,20,22,.045) 1px,transparent 1.2px);background-size:5px 5px}
+.dots{background-image:radial-gradient(#5A1427 2px,transparent 2.3px);background-size:9px 9px}
+button,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer;-webkit-tap-highlight-color:transparent}
+.press{transition:transform .12s ease}
+.press:active{transform:translateY(1px) scale(.98)}
+.scroll{scrollbar-width:none}
+.scroll::-webkit-scrollbar{display:none}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+:focus-visible{outline:3px solid #2F5BD3;outline-offset:2px}
+input::placeholder,textarea::placeholder{color:#7A6A64}
+@keyframes pop{0%{transform:scale(.93)}55%{transform:scale(1.04)}100%{transform:scale(1)}}
+.pop{animation:pop .3s cubic-bezier(.2,.8,.2,1)}
+@keyframes ok{0%{box-shadow:0 0 0 0 rgba(242,207,91,1)}100%{box-shadow:0 0 0 12px rgba(242,207,91,0)}}
+.confirm{animation:pop .3s cubic-bezier(.2,.8,.2,1),ok .45s ease-out}
+@keyframes ready{0%,100%{box-shadow:0 0 0 0 rgba(90,20,39,.0)}50%{box-shadow:0 0 0 5px rgba(90,20,39,.35)}}
+.ready{animation:ready 1.6s ease-in-out 2}
+@keyframes rise{from{transform:translateY(40px);opacity:0}to{transform:none;opacity:1}}
+.rise{animation:rise .28s cubic-bezier(.2,.8,.2,1)}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+.fade{animation:fade .22s ease}
+@keyframes drop{from{transform:translate(-50%,-12px);opacity:0}to{transform:translate(-50%,0);opacity:1}}
+.drop{animation:drop .25s ease}
+@media (prefers-reduced-motion: reduce){.pop,.rise,.fade,.drop,.confirm,.ready{animation:none}.press:active{transform:none}}

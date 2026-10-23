@@ -1,0 +1,42 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Credentials and captured session data: never commit (see CLAUDE.md, "Persistence, privacy and security")
+.env
+.env.*
+!.env.example
+*.har
+*.pem
+*.p12
+*.key
+*apollo*cache*.json
+*cache-dump*.json
+*session-export*.json
+# Put any unavoidable local captures here; the folder is ignored.
+private/
+
+# Test output
+test-results/
+playwright-report/
