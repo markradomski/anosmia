@@ -22,7 +22,7 @@ The starting point is a Claude Design HTML export containing a large React class
 ### Repository as of Phase 3 (re-check with `git log` and `git status`)
 
 - Local git repository on `main`, **no remote**. Nothing has been pushed or deployed.
-- Phases 1–3 are complete and were verified in desktop Chromium only. The Nothing Phone checklist is in `device-testing.md` and has not yet been run.
+- Phases 1–3 are complete and were verified in desktop Chromium only. The Nothing Phone checklist is in `device-testing.md`. Only the rear camera and Finish-row visibility have passed on the device so far (2026-10-23); see its Results table.
   - Phase 1 (port): the port matched the original export's rendered DOM, inline styles and element positions at 69 scripted checkpoints.
   - Phase 2: persistence.
   - Phase 3: full-screen mobile layout, real label photography, PWA install and offline use, blind-mode fixes, sample isolation and save reliability.
@@ -58,7 +58,7 @@ The starting point is a Claude Design HTML export containing a large React class
 
 ## Approved implementation direction
 
-- **Platform:** Responsive web app and installable PWA; mobile-first. The target device is an Android browser on a Nothing Phone. **Nothing Phone testing is outstanding.** Desktop Chromium verification is not physical-device verification.
+- **Platform:** Responsive web app and installable PWA; mobile-first. The target device is an Android browser on a Nothing Phone. **Most Nothing Phone testing is outstanding** (rear camera and Finish-row visibility passed on 2026-10-23). Desktop Chromium verification is not physical-device verification.
 - **Layout:** Prioritise the functional mobile app and let it adapt sensibly to larger viewports. Do not rebuild the static desktop board from the export.
 - **Core:** React, TypeScript, Vite.
 - **Styles:** Reuse the prototype's existing CSS/typography and extracted tokens; do not introduce Tailwind, a UI kit or a replacement styling strategy without approval.
@@ -143,7 +143,7 @@ Test pure logic and UI states for:
 - A/B setup, consistent A/B orientation, open/blind labelling, relative-answer semantics, summary editing, repeated comparisons and session resumption.
 - Chart legends, missing data, uncertain data and no invented precision.
 - Mobile at approximately 390–430 CSS px; sensible adaptation to larger viewports (not the static desktop board); keyboard focus, screen-reader names, touch-target sizes, zoom and reduced motion.
-- Actual Android browser: camera permission, keyboard overlays, PWA installation, bottom-dock reachability and persistence after closing/reopening. **Outstanding:** none of this has been run on the Nothing Phone yet.
+- Actual Android browser: camera permission, keyboard overlays, PWA installation, bottom-dock reachability and persistence after closing/reopening. **Outstanding:** apart from camera permission and the rear camera (passed 2026-10-23), none of this has been run on the Nothing Phone yet.
 
 Build passing is not physical-device validation, and desktop Chromium (including Playwright device emulation) is not an Android device. If Android/browser testing is unavailable, provide a short reproducible manual test checklist rather than claiming success.
 

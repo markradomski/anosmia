@@ -3,6 +3,17 @@
 Automated tests run in desktop Chromium. They do not replace these checks on the phone.
 Record the date, Android version, Chrome version and result for each step.
 
+## Results
+
+| Date | Device | Method | Check | Result |
+|---|---|---|---|---|
+| 2026-10-23 | Nothing Phone, model A059P, Android 16 (Chrome version not recorded) | Wi-Fi, plain `http://192.168.68.51:4173` | D: camera | Camera unavailable: not a secure context. Expected; led to the fix in commit 689e689 |
+| 2026-10-23 | Nothing Phone, model A059P, Android 16 | Wi-Fi, plain `http://192.168.68.51:4173` | B: record screen | Finish row hidden behind the thumb dock. Fixed in commit 689e689 |
+| 2026-10-23 | Nothing Phone, model A059P, Android 16 | Method A: Wireless debugging + `adb reverse`, `http://localhost:4173` | D1: rear camera opens | **Pass** (reported by owner) |
+| 2026-10-23 | Nothing Phone, model A059P, Android 16 | Method A, `http://localhost:4173` | B6: Finish row stays visible above the dock | **Pass** (reported by owner) |
+
+All other checks below have not been run on the device yet.
+
 ## Setup
 
 The camera, installation and offline use need a **secure context**: `https://`, or `localhost`.
