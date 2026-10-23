@@ -5,6 +5,11 @@ export async function tap(page: Page, name: string | RegExp) {
   await page.getByRole('button', { name, exact: typeof name === 'string' }).first().click()
 }
 
+/** Close a bottom sheet by tapping its backdrop above the sheet (the backdrop's centre is covered). */
+export async function closeSheet(page: Page) {
+  await page.getByRole('button', { name: 'Close' }).first().click({ position: { x: 20, y: 20 } })
+}
+
 /** Wait out the ~420 ms auto-advance and the 300 ms double-tap guard after a new answer. */
 export const settle = (page: Page) => page.waitForTimeout(800)
 
@@ -40,6 +45,11 @@ export async function committed(page: Page, store: 'tastings' | 'sessions', coun
   const start = Date.now()
   await expect.poll(async () => (await readStore(page, store)).length, { intervals: [10], timeout: 5000 }).toBe(count)
   return Date.now() - start
+}
+
+/** Wait until the stored draft has caught up with the screen the user is on. */
+export async function draftOn(page: Page, screen: string) {
+  await expect.poll(async () => (await readStore(page, 'drafts'))[0]?.screen, { intervals: [10], timeout: 5000 }).toBe(screen)
 }
 
 export async function databaseNames(page: Page) {

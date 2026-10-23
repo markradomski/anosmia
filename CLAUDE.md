@@ -19,10 +19,13 @@ Anosmia helps people record and compare wine sensations without requiring aroma 
 
 The starting point is a Claude Design HTML export containing a large React class component, not production infrastructure. The Figma file **ANOSMIA — Design System v0.1** documents approved foundations/components; it does not supersede verified runtime behaviour. **Inspect the actual checkout and git history before assuming anything has already been ported, tested or deployed.**
 
-### Repository as of the Phase 1 baseline (re-check with `git log` and `git status`)
+### Repository as of Phase 3 (re-check with `git log` and `git status`)
 
 - Local git repository on `main`, **no remote**. Nothing has been pushed or deployed.
-- Phase 1 (port) is complete and was verified in desktop Chromium only: the port matched the original export's rendered DOM, inline styles and element positions at 69 scripted checkpoints across tasting, A/B, summary and journal flows.
+- Phases 1–3 are complete and were verified in desktop Chromium only. The Nothing Phone checklist is in `device-testing.md` and has not yet been run.
+  - Phase 1 (port): the port matched the original export's rendered DOM, inline styles and element positions at 69 scripted checkpoints.
+  - Phase 2: persistence.
+  - Phase 3: full-screen mobile layout, real label photography, PWA install and offline use, blind-mode fixes, sample isolation and save reliability.
 - `references/ANOSMIA — Wine beyond aroma.html` is the single canonical copy of the export. `references/prototype/` holds its extracted template and logic for diffing. Neither is part of the build.
 - `scripts/extract-prototype.py` generated `src/anosmia/AnosmiaView.tsx`, `src/styles/*` and `src/assets/fonts/*` from the export. **Since Phase 1, `AnosmiaView.tsx` is maintained by hand; re-running the extractor overwrites it.**
 - `src/anosmia/AnosmiaLogic.ts` is the prototype's logic class with types added. `src/dc/` is a small shim reproducing the prototype runtime's semantics: synchronous `setState`, and computed style strings applied as whole `cssText`. Keep both behaviours unless a change is deliberate and verified.
@@ -31,10 +34,22 @@ The starting point is a Claude Design HTML export containing a large React class
   - `src/data/model.ts` is the persisted schema (v1).
   - `src/data/codec.ts` converts between that schema and the in-memory values, and rejects anything it can't map.
   - `src/data/db.ts` is raw IndexedDB with numbered migrations.
-  - `src/data/persistence.ts` loads before the first render, then writes new records together with the draft in one transaction.
-  - `src/data/photos.ts` stores label photos; it is not wired into the UI until real capture exists (Phase 3).
+  - `src/data/persistence.ts` loads before the first render, then writes new records together with the draft in one transaction. A save is confirmed ("Saved…") only after that transaction commits. A failed write shows an error, is retried only after the user's work changes, and never overwrites the stored draft that still holds the unsaved work.
+  - `src/data/photos.ts` stores label photos (downscaled JPEG, longest edge 1600 px). Photos that no record refers to are removed at startup once they are an hour old.
+- Layout and devices (Phase 3):
+  - Normal mode fills the viewport (`src/styles/app.css`: dynamic viewport height, safe-area padding, a centred 480 px column on wide screens). `index.html` sets `viewport-fit=cover` and `interactive-widget=resizes-content`, so Android's keyboard shrinks the layout instead of covering bottom bars.
+  - `?demo` and `?device=` keep the prototype's fixed frame.
+- Camera (Phase 3): `src/camera/LabelCamera.tsx` replaces the simulated camera in normal mode only; demo keeps the simulation. It uses the live camera when allowed and always offers choosing an image file. It handles denied and missing cameras, and has no recognition.
+- PWA (Phase 3): `vite-plugin-pwa` in `vite.config.ts`.
+  - The manifest uses icons rendered from the design-system mark by `scripts/make-icons.mjs`.
+  - The service worker precaches only the app's own built files. Updates wait until the app is fully closed.
 - `?demo` runs the prototype's sample journal in memory only, and nothing is saved. `?demo&screen=…` opens the prototype's demo states. `e2e/parity.spec.ts` compares demo mode with the original export at every checkpoint; keep it passing.
-- Known blind-mode leaks are recorded as `test.fail` cases in `e2e/blind.spec.ts`. Remove the annotation when a leak is fixed.
+- Blind mode (Phase 3 fixes, covered by `e2e/blind.spec.ts`):
+  - The naming sheet never shows which wine a glass holds.
+  - Switching from open to blind clears any names already shown.
+  - *Repeat this pair* starts open.
+  - Blind slot and glasses photos are never displayed before saving.
+- Sample data: the *Sample tasting* is never saved into a real journal (it says so); demo mode keeps the prototype's behaviour.
 - `docs/` holds supplied reference material. Do not edit those files without a separate request.
 
 ## Approved implementation direction

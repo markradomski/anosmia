@@ -1,19 +1,19 @@
 // Generated from the Anosmia prototype by scripts/extract-prototype.py.
 // Markup, bindings and inline styles are carried over unchanged.
 // Hand-maintained since Phase 1: re-running the extractor overwrites edits made here.
-import { Fragment } from 'react'
+import { Fragment, type ReactNode } from 'react'
 import { css } from '../dc/css'
 import type { Vals } from './AnosmiaLogic'
 
 type AriaBool = 'true' | 'false'
 
-export function AnosmiaView({ v }: { v: Vals }) {
+export function AnosmiaView({ v, overlay }: { v: Vals; overlay?: ReactNode }) {
   return (
-    <div className="f-ui grain" ref={css(`width: ${v.frameW}px; height: ${v.frameH}px; position: relative; overflow: hidden; background-color: #F5ECD7; color: #1E1416; font-size: 15px; line-height: 1.4`)}>
+    <div className="f-ui grain" ref={css(v.frameStyle)}>
       {/* 1 · WELCOME */}
       {v.isWelcome ? (
         <>
-          <div className="fade" style={{ position: "absolute", inset: "0", display: "flex", flexDirection: "column", padding: "18px 20px 22px", boxSizing: "border-box" }}>
+          <div className={v.welcomeClass} ref={css(v.welcomeStyle)}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                 <svg viewBox="0 0 64 96" width="20" height="30" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round">
@@ -1639,6 +1639,7 @@ export function AnosmiaView({ v }: { v: Vals }) {
           <div role="status" className="drop" style={{ position: "absolute", left: "50%", top: "14px", transform: "translateX(-50%)", zIndex: "60", background: "#1E1416", color: "#FBF6EA", padding: "10px 16px", borderRadius: "22px", fontSize: "13.5px", fontWeight: "600", whiteSpace: "nowrap" }}>{v.toast}</div>
         </>
       ) : null}
+      {overlay}
     </div>
   )
 }

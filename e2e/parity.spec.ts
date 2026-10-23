@@ -16,8 +16,9 @@ const SINGLE: Checkpoints = [
 ]
 
 const AB: Checkpoints = [
-  [['click', 'Two glasses?']], [['click', 'Glass A: Unnamed. Tap to name.']], [['click', 'Mallee & Sons Shiraz']],
-  [['click', 'Glass B: Unnamed. Tap to name.']], [['click', 'Little Ferment Pinot Noir']], [['click', 'Someone else']], [['click', 'Start comparing']],
+  // Blind is chosen before the pourer names the glasses (switching to blind clears names already shown).
+  [['click', 'Two glasses?']], [['click', 'Someone else']], [['click', 'Glass A: Unnamed. Tap to name.']], [['click', 'Mallee & Sons Shiraz']],
+  [['click', 'Glass B: Unnamed. Tap to name.']], [['click', 'Little Ferment Pinot Noir']], [['click', 'Start comparing']],
   [['click', 'AA']], [['click', '=About the same']], [['click', 'BB']], [['click', '?Can’t tell']], [['click', 'AA']], [['click', 'BB']],
   [['click', 'All six. Review']], [['click', 'Sweetness: A sweeter. Tap to change.']], [['click', '=About the same']],
   [['click', '+Both']], [['type', '#abnotes', 'B lighter']], [['click', 'Save comparison']],

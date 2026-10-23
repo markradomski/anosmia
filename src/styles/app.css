@@ -1,0 +1,29 @@
+/* Full-screen app shell (normal mode). Demo mode keeps the prototype's fixed device frame. */
+html,
+body,
+#root {
+  height: 100%;
+}
+
+.app-shell {
+  box-sizing: border-box;
+  height: 100vh; /* fallback for browsers without dynamic viewport units */
+  height: 100dvh;
+  /* The screens were designed for 390–430 px; wider viewports get a centred column. */
+  max-width: 480px;
+  margin: 0 auto;
+  /* Bottom insets are handled by each screen's dock or bar, so their backgrounds reach the edge. */
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) 0 env(safe-area-inset-left, 0px);
+}
+
+/* On short screens the welcome column scrolls instead of squashing its illustration under the headline. */
+.welcome-fill {
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.welcome-fill::-webkit-scrollbar {
+  display: none;
+}
+.welcome-fill > * {
+  flex-shrink: 0;
+}

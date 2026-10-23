@@ -49,3 +49,59 @@ describe('restoring a draft', () => {
     expect(restorableDraft({ screen: 'abRecord', ab: null }, [], []).screen).toBe('welcome')
   })
 })
+
+describe('blind comparisons', () => {
+  const named = () => {
+    const l = new AnosmiaLogic({})
+    l.state = { ...l.state, journal: [], sessions: [] }
+    l.startAB()
+    l.abSetSlot('a', { wine: l.wineById('mallee21'), name: null })
+    return l
+  }
+
+  it('switching to blind clears names that were already shown', () => {
+    const l = named()
+    l.setBlind()
+    expect(l.state.ab!.blind).toBe(true)
+    expect(l.state.ab!.a).toEqual(l.emptySlot())
+  })
+
+  it('choosing blind before naming keeps the pourer’s names, and the naming sheet never shows them', () => {
+    const l = new AnosmiaLogic({})
+    l.state = { ...l.state, journal: [], sessions: [] }
+    l.startAB()
+    l.setBlind()
+    l.abSetSlot('a', { wine: l.wineById('mallee21'), name: null })
+    l.setState({ screen: 'abReview', abSlot: 'a' })
+    const v = l.renderVals()
+    expect(l.state.ab!.a.wine?.id).toBe('mallee21')
+    expect(v.abWineOpts.filter(o => o.pressed === 'true')).toEqual([])
+    expect(v.abSlotBlind).toBe(true)
+  })
+
+  it('repeating a saved blind pair starts open', () => {
+    const l = new AnosmiaLogic({})
+    l.state = { ...l.state, journal: [], sessions: l.seedSessions().map(s => ({ ...s, blind: true })), screen: 'abView', sessionId: 's1' }
+    l.renderVals().repeatAB()
+    expect(l.state.ab!.blind).toBe(false)
+    expect(l.state.ab!.repeatOf).toBe('s1')
+  })
+})
+
+describe('sample tasting', () => {
+  it('is never saved into a real journal', () => {
+    const l = new AnosmiaLogic({})
+    l.state = { ...l.state, journal: [], sessions: [] }
+    l.loadSample()
+    l.save()
+    expect(l.state.journal).toEqual([])
+    expect(l.state.screen).toBe('journal')
+  })
+
+  it('is saved as before in demo mode', () => {
+    const l = new AnosmiaLogic({ demo: true })
+    l.loadSample()
+    l.save()
+    expect(l.journalNow()).toHaveLength(7)
+  })
+})

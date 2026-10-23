@@ -109,8 +109,15 @@ export function wineFromStored(w: unknown): Wine | null {
   return wine
 }
 
-/** The prototype only knows whether a photo was taken (its camera is simulated). */
-export const photoToStored = (taken: boolean): StoredPhoto => (taken ? { kind: 'simulated' } : { kind: 'none' })
+/** A real photo has an id in the photos store; the prototype's simulated camera only sets the flag. */
+export const photoToStored = (taken: boolean, photoId?: string | null): StoredPhoto =>
+  photoId ? { kind: 'image', photoId } : taken ? { kind: 'simulated' } : { kind: 'none' }
+
+/** The stored photo's id, for a real photo; null otherwise. */
+export function photoIdFromStored(p: unknown): string | null {
+  photoFromStored(p)
+  return (p as { kind: string }).kind === 'image' ? (p as { photoId: string }).photoId : null
+}
 
 export function photoFromStored(p: unknown): boolean {
   if (!isObject(p)) return fail('photo: expected an object')
@@ -120,11 +127,14 @@ export function photoFromStored(p: unknown): boolean {
   return fail(`photo: unknown kind ${JSON.stringify(p.kind)}`)
 }
 
-const slotToStored = (s: Slot): StoredSlot => ({ wine: wineToStored(s.wine), name: s.name, photo: photoToStored(s.photo) })
+const slotToStored = (s: Slot): StoredSlot => ({ wine: wineToStored(s.wine), name: s.name, photo: photoToStored(s.photo, s.photoId) })
 
 const slotFromStored = (s: unknown, what: string): Slot => {
   if (!isObject(s)) return fail(`${what}: expected an object`)
-  return { wine: wineFromStored(s.wine), name: strOrNull(s.name, `${what}.name`), photo: photoFromStored(s.photo) }
+  const slot: Slot = { wine: wineFromStored(s.wine), name: strOrNull(s.name, `${what}.name`), photo: photoFromStored(s.photo) }
+  const photoId = photoIdFromStored(s.photo)
+  if (photoId) slot.photoId = photoId
+  return slot
 }
 
 const prefFromStored = (p: unknown): Pref | null =>
@@ -144,7 +154,7 @@ const checkSchema = (r: Record<string, unknown>, what: string) => {
 
 export function entryToRecord(e: Entry, createdAt: string): TastingRecord {
   return { schema: SCHEMA_VERSION, id: e.id, createdAt, wine: wineToStored(e.wine), title: e.title ?? null,
-    photo: photoToStored(e.photo), observations: observationsToStored(e.obs), notes: e.notes,
+    photo: photoToStored(e.photo, e.photoId), observations: observationsToStored(e.obs), notes: e.notes,
     enjoyment: enjoymentToStored(e.enjoy), origin: e.sample ? 'sample' : 'user' }
 }
 
@@ -159,6 +169,8 @@ export function recordToEntry(raw: unknown): Entry {
       photo: photoFromStored(raw.photo), date: displayDate(createdAt), obs: observationsFromStored(raw.observations),
       notes: str(raw.notes, 'notes'), enjoy: enjoymentToStored(raw.enjoyment as number | null) }
     if (raw.origin === 'sample') entry.sample = true
+    const photoId = photoIdFromStored(raw.photo)
+    if (photoId) entry.photoId = photoId
     return entry
   } catch (err) {
     throw new CodecError(`tasting ${id}: ${(err as Error).message}`)
@@ -169,7 +181,7 @@ export function recordToEntry(raw: unknown): Entry {
 
 export function sessionToRecord(s: Session, createdAt: string): SessionRecord {
   return { schema: SCHEMA_VERSION, id: s.id, createdAt, a: slotToStored(s.a), b: slotToStored(s.b),
-    mode: s.blind ? 'blind' : 'open', glassesPhoto: photoToStored(s.glassPhoto), answers: answersToStored(s.ans),
+    mode: s.blind ? 'blind' : 'open', glassesPhoto: photoToStored(s.glassPhoto, s.glassPhotoId), answers: answersToStored(s.ans),
     preference: s.pref, notes: s.notes, repeatOf: s.repeatOf }
 }
 
@@ -178,10 +190,13 @@ export function recordToSession(raw: unknown): Session {
   checkSchema(raw, 'session')
   const id = str(raw.id, 'session.id')
   try {
-    return { id, date: displayDate(str(raw.createdAt, 'createdAt')), a: slotFromStored(raw.a, 'a'),
+    const session: Session = { id, date: displayDate(str(raw.createdAt, 'createdAt')), a: slotFromStored(raw.a, 'a'),
       b: slotFromStored(raw.b, 'b'), blind: modeFromStored(raw.mode), glassPhoto: photoFromStored(raw.glassesPhoto),
       ans: answersFromStored(raw.answers), pref: prefFromStored(raw.preference), notes: str(raw.notes, 'notes'),
       repeatOf: strOrNull(raw.repeatOf, 'repeatOf') }
+    const glassPhotoId = photoIdFromStored(raw.glassesPhoto)
+    if (glassPhotoId) session.glassPhotoId = glassPhotoId
+    return session
   } catch (err) {
     throw new CodecError(`session ${id}: ${(err as Error).message}`)
   }
@@ -190,7 +205,7 @@ export function recordToSession(raw: unknown): Session {
 // ---------- the resumable draft ----------
 
 const abDraftToStored = (ab: AbDraft): StoredAbDraft => ({ a: slotToStored(ab.a), b: slotToStored(ab.b),
-  mode: ab.blind ? 'blind' : 'open', glassesPhoto: photoToStored(ab.glassPhoto), answers: answersToStored(ab.ans),
+  mode: ab.blind ? 'blind' : 'open', glassesPhoto: photoToStored(ab.glassPhoto, ab.glassPhotoId), answers: answersToStored(ab.ans),
   focus: ab.focus, preference: ab.pref, notes: ab.notes, repeatOf: ab.repeatOf, back: ab.back })
 
 const sensKey = (k: unknown, what: string): SensKey =>
@@ -200,7 +215,7 @@ const abDraftFromStored = (d: unknown): AbDraft | null => {
   if (d === null) return null
   if (!isObject(d)) return fail('ab: expected an object or null')
   return { a: slotFromStored(d.a, 'ab.a'), b: slotFromStored(d.b, 'ab.b'), blind: modeFromStored(d.mode),
-    glassPhoto: photoFromStored(d.glassesPhoto), ans: answersFromStored(d.answers), focus: sensKey(d.focus, 'ab.focus'),
+    glassPhoto: photoFromStored(d.glassesPhoto), glassPhotoId: photoIdFromStored(d.glassesPhoto), ans: answersFromStored(d.answers), focus: sensKey(d.focus, 'ab.focus'),
     pref: prefFromStored(d.preference), notes: str(d.notes, 'ab.notes'), repeatOf: strOrNull(d.repeatOf, 'ab.repeatOf'),
     back: str(d.back, 'ab.back') }
 }
@@ -210,7 +225,7 @@ export function stateToDraft(st: State, savedAt: string): DraftRecord {
     key: 'current', schema: SCHEMA_VERSION, savedAt, screen: st.screen ?? 'welcome',
     nav: { entryId: st.entryId, compare: st.cmp ? [st.cmp[0], st.cmp[1]] : null, sessionId: st.sessionId,
       journalTab: st.jTab, returnTo: st.returnTo },
-    tasting: { wine: wineToStored(st.wine), title: st.title, photo: photoToStored(st.photo), query: st.query,
+    tasting: { wine: wineToStored(st.wine), title: st.title, photo: photoToStored(st.photo, st.photoId), query: st.query,
       observations: observationsToStored(st.obs), focus: st.focus, notes: st.notes, enjoyment: enjoymentToStored(st.enjoy),
       repeatOf: st.repeatOf, sample: st.sample },
     ab: st.ab ? abDraftToStored(st.ab) : null,
@@ -234,7 +249,7 @@ export function draftToState(raw: unknown): Partial<State> {
     screen: screen(raw.screen, 'draft.screen'),
     entryId: strOrNull(nav.entryId, 'nav.entryId'), cmp, sessionId: strOrNull(nav.sessionId, 'nav.sessionId'),
     jTab: nav.journalTab as State['jTab'], returnTo: nav.returnTo === null ? null : screen(nav.returnTo, 'nav.returnTo'),
-    wine: wineFromStored(t.wine), title: strOrNull(t.title, 'tasting.title'), photo: photoFromStored(t.photo),
+    wine: wineFromStored(t.wine), title: strOrNull(t.title, 'tasting.title'), photo: photoFromStored(t.photo), photoId: photoIdFromStored(t.photo),
     query: str(t.query, 'tasting.query'), obs: observationsFromStored(t.observations), focus: sensKey(t.focus, 'tasting.focus'),
     notes: str(t.notes, 'tasting.notes'), enjoy: enjoymentToStored(t.enjoyment as number | null),
     repeatOf: strOrNull(t.repeatOf, 'tasting.repeatOf'), sample: t.sample as boolean,

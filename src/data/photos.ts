@@ -67,3 +67,68 @@ export async function loadPhoto(db: Db, id: string): Promise<Blob | null> {
 export function deletePhoto(db: Db, id: string): Promise<void> {
   return db.delete('photos', id)
 }
+
+/**
+ * The app's view of stored photos: saves new ones and hands out object URLs for display, loading
+ * them lazily. Without a database (storage unavailable) photos live in memory for the session only.
+ */
+export class PhotoLibrary {
+  private db: Db | null
+  private urls = new Map<string, string>()
+  private loading = new Set<string>()
+  private memory = new Map<string, Blob>()
+  private listeners = new Set<() => void>()
+
+  constructor(db: Db | null) {
+    this.db = db
+  }
+
+  /** Be told when a photo finishes loading, so the screen can re-render. */
+  subscribe(fn: () => void) {
+    this.listeners.add(fn)
+    return () => {
+      this.listeners.delete(fn)
+    }
+  }
+
+  url(id: string): string | null {
+    const cached = this.urls.get(id)
+    if (cached) return cached
+    if (!this.loading.has(id)) {
+      this.loading.add(id)
+      void this.blob(id).then(blob => {
+        this.loading.delete(id)
+        if (!blob) return
+        this.urls.set(id, URL.createObjectURL(blob))
+        this.listeners.forEach(fn => fn())
+      }, err => {
+        this.loading.delete(id)
+        console.error('[anosmia] photo could not be loaded:', err)
+      })
+    }
+    return null
+  }
+
+  blob(id: string): Promise<Blob | null> {
+    if (!this.db) return Promise.resolve(this.memory.get(id) ?? null)
+    return loadPhoto(this.db, id)
+  }
+
+  async add(input: Blob): Promise<string> {
+    if (this.db) return savePhoto(this.db, input)
+    const blob = await prepareLabelPhoto(input)
+    const id = 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8)
+    this.memory.set(id, blob)
+    return id
+  }
+
+  /** Delete a photo nothing refers to any more. Photos still referenced are kept. */
+  async release(id: string, referenced: Set<string>): Promise<void> {
+    if (referenced.has(id)) return
+    const url = this.urls.get(id)
+    if (url) URL.revokeObjectURL(url)
+    this.urls.delete(id)
+    this.memory.delete(id)
+    if (this.db) await deletePhoto(this.db, id)
+  }
+}

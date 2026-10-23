@@ -25,18 +25,22 @@ export interface Wine {
 }
 export interface Entry {
   id: string; wine: Wine | null; title?: string | null; photo: boolean; date: string
+  /** A real label photo in local storage; `photo` alone means the prototype's simulated photo. */
+  photoId?: string | null
   obs: Obs; notes: string; enjoy: number | null
   /** Saved from the built-in Sample tasting rather than tasted by the user. */
   sample?: boolean
 }
-export interface Slot { wine: Wine | null; name: string | null; photo: boolean }
+export interface Slot { wine: Wine | null; name: string | null; photo: boolean; photoId?: string | null }
 export interface AbDraft {
   a: Slot; b: Slot; blind: boolean; glassPhoto: boolean; ans: AbAns; focus: SensKey
   pref: Pref | null; notes: string; repeatOf: string | null; back: string
+  glassPhotoId?: string | null
 }
 export interface Session {
   id: string; date: string; a: Slot; b: Slot; blind: boolean; glassPhoto: boolean
   ans: AbAns; pref: Pref | null; notes: string; repeatOf: string | null
+  glassPhotoId?: string | null
 }
 interface Label {
   bg: string; card: string; ink: string; accent: string; font: 'ui' | 'disp' | 'mono'
@@ -46,8 +50,10 @@ interface AbQuestion { q: string; more: string; noun: string; cue: string }
 
 export interface State {
   screen: Screen | null
-  wine: Wine | null; photo: boolean; title: string | null; query: string
+  wine: Wine | null; photo: boolean; photoId: string | null; title: string | null; query: string
   camera: boolean; camStage: 'aim' | 'found'
+  /** What the camera is photographing (real camera only). */
+  camTarget: PhotoTarget
   manual: boolean; mName: string; mType: string | null
   obs: Obs
   focus: SensKey; guide: boolean; editing: boolean
@@ -61,10 +67,18 @@ export interface State {
   toast: string
 }
 
+export type PhotoTarget = 'tasting' | 'a' | 'b' | 'glasses'
+
+/** Local label photos (normal mode only; demo mode keeps the prototype's simulated camera). */
+export interface PhotoUrls { url(id: string): string | null }
+
 export interface Props {
   device?: Device | string; startScreen?: Screen | string
   /** Demo mode: the prototype's sample journal, in memory only. */
   demo?: boolean
+  /** Fill the browser viewport instead of the prototype's fixed device frame. */
+  fill?: boolean
+  photos?: PhotoUrls
 }
 
 type Timer = ReturnType<typeof setTimeout>
@@ -79,8 +93,8 @@ export class AnosmiaLogic extends DCLogic<Props, State> {
 
   state: State = {
     screen: null,
-    wine: null, photo: false, title: null, query: '',
-    camera: false, camStage: 'aim',
+    wine: null, photo: false, photoId: null, title: null, query: '',
+    camera: false, camStage: 'aim', camTarget: 'tasting',
     manual: false, mName: '', mType: null,
     obs: { sweet: null, acid: null, tannin: null, body: null, warm: null, finish: null },
     focus: 'sweet', guide: false, editing: false,
@@ -174,7 +188,7 @@ export class AnosmiaLogic extends DCLogic<Props, State> {
   journalNow() { return this.state.journal || this.seed(); }
   emptyObs(): Obs { return { sweet: null, acid: null, tannin: null, body: null, warm: null, finish: null }; }
   blank(): Partial<State> {
-    return { wine: null, photo: false, title: null, query: '', obs: this.emptyObs(), focus: 'sweet', guide: false, editing: false,
+    return { wine: null, photo: false, photoId: null, title: null, query: '', obs: this.emptyObs(), focus: 'sweet', guide: false, editing: false,
       notes: '', enjoy: null, confirmK: null, liveMsg: '', returnTo: null, repeatOf: null, sample: false,
       camera: false, camStage: 'aim', manual: false, mName: '', mType: null };
   }
@@ -186,7 +200,16 @@ export class AnosmiaLogic extends DCLogic<Props, State> {
   }
 
   /* ---------- visual helpers ---------- */
-  tileFor(w: Wine | null, hasPhoto: boolean, size: number) {
+  /** Object URL of a stored label photo, if one is loaded. */
+  photoUrl(id: string | null | undefined) { return id && this.props.photos ? this.props.photos.url(id) : null; }
+  tileFor(w: Wine | null, hasPhoto: boolean, size: number, photoUrl?: string | null) {
+    const tile = this.drawnTile(w, hasPhoto, size);
+    if (!hasPhoto || !photoUrl) return tile;
+    // A real label photo replaces the drawn label; the drawn card is hidden.
+    return { ...tile, back: 'position:relative;width:100%;height:100%;overflow:hidden;background:#24161A url("' + photoUrl + '") center / cover no-repeat;', card: 'display:none;' };
+  }
+  /** The prototype's drawn label tile (or the striped "no photo" tile). */
+  drawnTile(w: Wine | null, hasPhoto: boolean, size: number) {
     const small = size < 60;
     if (!hasPhoto) {
       return { hasPhoto: false, noPhoto: true,
@@ -252,6 +275,12 @@ export class AnosmiaLogic extends DCLogic<Props, State> {
   }
 
   /* ---------- actions ---------- */
+  /**
+   * Set by the persistence layer: confirms a save only once it has been written to the device, so a
+   * failed write is never reported as saved. Without it (demo mode) saves are confirmed at once.
+   */
+  saveAnnouncer?: (message: string) => void
+  announceSave(t: string) { if (this.saveAnnouncer) this.saveAnnouncer(t); else this.toast(t); }
   toast(t: string) { clearTimeout(this._tt); this.setState({ toast: t }); this._tt = setTimeout(() => this.setState({ toast: '' }), 2600); }
   start() { this.setState(Object.assign(this.blank(), { screen: 'find', selecting: false, sel: [] })); }
   loadSample() {
@@ -319,11 +348,17 @@ export class AnosmiaLogic extends DCLogic<Props, State> {
   }
   save() {
     const st = this.state; const J = this.journalNow(); const id = 'n' + Date.now();
-    const e: Entry = { id: id, wine: st.wine, title: st.wine ? null : (st.title || 'Unnamed wine'), photo: st.photo, date: this.today(), obs: Object.assign({}, st.obs), notes: st.notes.trim(), enjoy: st.enjoy };
+    // The built-in sample is illustrative, not something the user tasted: it never enters a real journal.
+    if (st.sample && !this.props.demo) {
+      this.setState({ ...this.blank(), screen: 'journal', selecting: false, sel: [] });
+      this.toast('That was the sample tasting, so it isn’t saved to your journal.');
+      return;
+    }
+    const e: Entry = { id: id, wine: st.wine, title: st.wine ? null : (st.title || 'Unnamed wine'), photo: st.photo, photoId: st.photoId, date: this.today(), obs: Object.assign({}, st.obs), notes: st.notes.trim(), enjoy: st.enjoy };
     if (st.sample) e.sample = true;
     const rep = st.repeatOf;
     this.setState(Object.assign(this.blank(), { journal: [e].concat(J), lastSaved: id, screen: rep ? 'compare' : 'journal', cmp: rep ? [rep, id] : st.cmp, selecting: false, sel: [] }));
-    this.toast(rep ? 'Saved. Then and now, side by side.' : 'Saved. Your palate has been noted.');
+    this.announceSave(rep ? 'Saved. Then and now, side by side.' : 'Saved. Your palate has been noted.');
   }
   tapCard(id: string) {
     const st = this.state;
@@ -357,7 +392,7 @@ export class AnosmiaLogic extends DCLogic<Props, State> {
   }
   emptySlot(): Slot { return { wine: null, name: null, photo: false }; }
   newAB(a?: Slot | null, b?: Slot | null, extra?: Partial<AbDraft>): AbDraft {
-    return Object.assign({ a: a || this.emptySlot(), b: b || this.emptySlot(), blind: false, glassPhoto: false,
+    return Object.assign({ a: a || this.emptySlot(), b: b || this.emptySlot(), blind: false, glassPhoto: false, glassPhotoId: null,
       ans: this.emptyObs(), focus: 'sweet', pref: null, notes: '', repeatOf: null, back: 'journal' }, extra || {});
   }
   seedSessions(): Session[] {
@@ -457,6 +492,39 @@ export class AnosmiaLogic extends DCLogic<Props, State> {
     const back = this.state.screen || 'welcome';
     this.setState({ ab: this.newAB(a, b, Object.assign({ back: back }, extra || {})), screen: 'abSetup', abEditing: false, abGuide: false, abSlot: null, chooser: false, selecting: false, sel: [], confirmK: null });
   }
+  /**
+   * Switching to blind clears any names already shown on screen: a pair the taster has seen named
+   * can't be blind, so whoever poured names the glasses again. (A repeated pair therefore starts open.)
+   */
+  setBlind() {
+    const ab = this.state.ab!;
+    if (ab.blind) return;
+    const seen = [ab.a, ab.b].some(sl => sl.wine || sl.name || sl.photo);
+    if (!seen) { this.setAbPatch({ blind: true }); return; }
+    this.setAbPatch({ blind: true, a: this.emptySlot(), b: this.emptySlot() });
+    this.toast('Names cleared. Whoever poured can name the glasses.');
+  }
+  /** The stored photo the camera's current target already has, if any. */
+  photoForTarget(): string | null {
+    const st = this.state; const t = st.camTarget;
+    if (t === 'tasting') return st.photoId;
+    if (!st.ab) return null;
+    return (t === 'glasses' ? st.ab.glassPhotoId : st.ab[t].photoId) ?? null;
+  }
+  /** Attach (or with null, remove) the camera target's photo and close the camera. */
+  applyPhoto(photoId: string | null) {
+    const st = this.state; const t = st.camTarget;
+    if (t === 'tasting') { this.setState({ photo: !!photoId, photoId, camera: false }); return; }
+    this.setState({ camera: false });
+    if (!st.ab) return;
+    if (t === 'glasses') {
+      this.setAbPatch({ glassPhoto: !!photoId, glassPhotoId: photoId });
+      if (photoId) this.toast('Glasses photographed. A left, B right.');
+      return;
+    }
+    this.abSetSlot(t, { photo: !!photoId, photoId });
+    if (photoId) this.toast('Label photo saved to glass ' + t.toUpperCase() + '.');
+  }
   setAbPatch(p: Partial<AbDraft>) { this.setState({ ab: Object.assign({}, this.state.ab, p) }); }
   setAB(k: SensKey, v: Exclude<AbValue, null>) {
     if (Date.now() < (this._guard || 0)) return;
@@ -502,10 +570,10 @@ export class AnosmiaLogic extends DCLogic<Props, State> {
   }
   saveAB() {
     const st = this.state; const ab = st.ab!; const id = 's' + Date.now();
-    const sess = { id: id, date: this.today(), a: ab.a, b: ab.b, blind: ab.blind, glassPhoto: ab.glassPhoto, ans: Object.assign({}, ab.ans), pref: ab.pref, notes: ab.notes.trim(), repeatOf: ab.repeatOf };
+    const sess: Session = { id: id, date: this.today(), a: ab.a, b: ab.b, blind: ab.blind, glassPhoto: ab.glassPhoto, glassPhotoId: ab.glassPhotoId ?? null, ans: Object.assign({}, ab.ans), pref: ab.pref, notes: ab.notes.trim(), repeatOf: ab.repeatOf };
     this.cancelAdvance();
     this.setState({ sessions: [sess].concat(this.sessionsNow()), ab: null, screen: 'abView', sessionId: id, lastSession: id, lbOpen: false, refsOpen: false, abEditing: false, confirmK: null, jTab: 'sessions' });
-    this.toast(ab.blind ? 'Saved. Names revealed below.' : 'Saved. Your tongue has entered the chat.');
+    this.announceSave(ab.blind ? 'Saved. Names revealed below.' : 'Saved. Your tongue has entered the chat.');
   }
   demoAB(which: string) {
     if (which === 'abSetup') { this.startAB(); return; }
@@ -602,7 +670,7 @@ export class AnosmiaLogic extends DCLogic<Props, State> {
     const ins2 = mostU.u > 0 ? '“Can’t tell” came up most for ' + lc(mostU) + ' (' + mostU.u + ' of ' + J.length + '). That records uncertainty, not inability.' : 'No “can’t tell” answers yet. Suspicious, but fine.';
     const cards = J.map(e => {
       const id = this.ident(e); const si = st.sel.indexOf(e.id);
-      return { tile: this.tileFor(e.wine, e.photo, 171), date: e.date, title: id.title, sub: id.sub,
+      return { tile: this.tileFor(e.wine, e.photo, 171, this.photoUrl(e.photoId)), date: e.date, title: id.title, sub: id.sub,
         note: e.notes ? '“' + e.notes + '”' : '', enjoy: e.enjoy ? this.enjoyLabels()[e.enjoy - 1] : '',
         fp: this.fp(e.obs, '#5A1427', 1), tap: () => this.tapCard(e.id), selecting: st.selecting,
         checkText: si >= 0 ? (si === 0 ? 'A' : 'B') : '',
@@ -614,7 +682,7 @@ export class AnosmiaLogic extends DCLogic<Props, State> {
     /* entry */
     const E = J.find(e => e.id === st.entryId) || J[0] || this.blankEntry();
     const eid = this.ident(E);
-    const ent = { tile: this.tileFor(E.wine, E.photo, 358), title: eid.title, sub: eid.long, date: E.date, notes: E.notes, hasNotes: !!E.notes,
+    const ent = { tile: this.tileFor(E.wine, E.photo, 358, this.photoUrl(E.photoId)), title: eid.title, sub: eid.long, date: E.date, notes: E.notes, hasNotes: !!E.notes,
       enjoy: E.enjoy ? this.enjoyLabels()[E.enjoy - 1] : 'Not rated', hidden: !st.reveal, shown: !!st.reveal,
       rows: S.map(s => ({ name: s.name, cells: this.cells(E.obs[s.k], '#5A1427', false, 18), val: this.valOf(s, E.obs[s.k]), valStyle: this.valStyle(E.obs[s.k]) })) };
 
@@ -624,7 +692,7 @@ export class AnosmiaLogic extends DCLogic<Props, State> {
     const A = J.find(e => e.id === pair[0]) || J[0] || this.blankEntry();
     const B = J.find(e => e.id === pair[1]) || J[1] || this.blankEntry();
     const ia = this.ident(A), ib = this.ident(B);
-    const head = (e: Entry, id: ReturnType<AnosmiaLogic['ident']>, color: string, side: string) => ({ tile: this.tileFor(e.wine, e.photo, 54), fp: this.fp(e.obs, color, 0.8), title: id.title, sub: id.sub, date: e.date, side: side,
+    const head = (e: Entry, id: ReturnType<AnosmiaLogic['ident']>, color: string, side: string) => ({ tile: this.tileFor(e.wine, e.photo, 54, this.photoUrl(e.photoId)), fp: this.fp(e.obs, color, 0.8), title: id.title, sub: id.sub, date: e.date, side: side,
       key: this.markStyle(side, 18, false), enjoy: e.enjoy ? this.enjoyLabels()[e.enjoy - 1] : 'Not rated',
       boxStyle: 'border-top:4px solid ' + color + ';padding-top:10px;min-width:0;' });
     const cmpHeads = [head(A, ia, CA, 'A'), head(B, ib, CB, 'B')];
@@ -693,7 +761,8 @@ export class AnosmiaLogic extends DCLogic<Props, State> {
     const slotW = st.abSlot && ab ? ab[st.abSlot] : null;
     const tastedIds = J.filter(e => e.wine).map(e => e.wine!.id);
     const abWineOpts = this.wines().slice().sort((x, y) => Number(tastedIds.indexOf(y.id) >= 0) - Number(tastedIds.indexOf(x.id) >= 0)).map(x => {
-      const sel = !!(slotW && slotW.wine && slotW.wine.id === x.id);
+      // Blind: never show which wine a glass holds, even when the sheet is reopened.
+      const sel = !(ab && ab.blind) && !!(slotW && slotW.wine && slotW.wine.id === x.id);
       return { title: x.name, sub: [x.variety, x.vintage].join(' · '), tag: sel ? 'Selected' : (tastedIds.indexOf(x.id) >= 0 ? 'In journal' : ''), pressed: sel ? 'true' : 'false',
         style: 'display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;min-height:54px;padding:6px 8px;box-sizing:border-box;border:0;border-bottom:1px solid rgba(30,20,22,.18);text-align:left;' + (sel ? 'background:#F2CF5B;' : 'background:transparent;'),
         pick: () => this.abSetSlot(st.abSlot!, { wine: x, name: null }) };
@@ -758,12 +827,12 @@ export class AnosmiaLogic extends DCLogic<Props, State> {
       findPrimaryLabel: st.returnTo === 'summary' ? 'Back to summary' : (w ? 'Start tasting' : 'Taste without naming'),
       findPrimarySub: w ? w.name + (w.vintage ? ' ' + w.vintage : '') + (st.photo ? ' · photo saved' : '') : (st.photo ? 'Label photo saved · name it later' : 'You can name it later, or never'),
       cameraLabel: st.photo ? 'Retake photo' : 'Snap the label',
-      openCamera: () => this.setState({ camera: true, camStage: 'aim' }),
+      openCamera: () => this.setState({ camera: true, camStage: 'aim', camTarget: 'tasting' }),
       closeCamera: () => this.setState({ camera: false, camStage: 'aim' }),
       capture: () => this.setState({ camStage: 'found' }),
       acceptGuess: () => { const patch: Partial<State> = { wine: guessW, photo: true, camera: false, camStage: 'aim' }; this.setState(patch); },
       rejectGuess: () => this.setState({ photo: true, camera: false, camStage: 'aim', wine: st.wine && st.wine.id === guessW.id && !st.wine.custom ? st.wine : st.wine }),
-      camera: st.camera, camAim: st.camStage === 'aim', camFound: st.camStage === 'found',
+      camera: st.camera && !this.props.photos, camAim: st.camStage === 'aim', camFound: st.camStage === 'found',
       guessName: guessW.name + (guessW.vintage ? ' ' + guessW.vintage : ''),
       camProd: guessW.producer, camTitle: guessW.variety, camVin: guessW.vintage,
       openManual: () => this.setState({ manual: true }), closeManual: () => this.setState({ manual: false }),
@@ -777,7 +846,7 @@ export class AnosmiaLogic extends DCLogic<Props, State> {
       tastingNo: 'Tasting No. ' + String(J.length + 1).padStart(2, '0'),
       answeredText: answered + ' of 6 answered',
       changeWine: () => this.setState({ screen: 'find' }),
-      recTile: this.tileFor(w, st.photo, 34), sum: sum, rows: rows,
+      recTile: this.tileFor(w, st.photo, 34, this.photoUrl(st.photoId)), sum: sum, rows: rows,
 
       /* dock */
       showDock: scr === 'record' || sheet, dockSheet: sheet,
@@ -804,7 +873,7 @@ export class AnosmiaLogic extends DCLogic<Props, State> {
       closeEdit: () => { this.cancelAdvance(); this.setState({ editing: false, confirmK: null }); },
 
       /* summary */
-      summaryTag: st.sample ? 'Sample · illustrative' : 'Summary', sumTile: this.tileFor(w, st.photo, 104),
+      summaryTag: st.sample ? 'Sample · illustrative' : 'Summary', sumTile: this.tileFor(w, st.photo, 104, this.photoUrl(st.photoId)),
       sumRows: sumRows, sumFp: this.fp(obs, '#5A1427', 1),
       notes: st.notes, onNotes: (e: Change) => this.setState({ notes: e.target.value }),
       enjoyOpts: enjoyOpts,
@@ -825,21 +894,21 @@ export class AnosmiaLogic extends DCLogic<Props, State> {
 
       /* entry */
       ent: ent, toggleReveal: () => this.setState({ reveal: !st.reveal }),
-      tasteAgain: () => this.setState(Object.assign(this.blank(), { wine: E.wine, title: E.title || null, photo: E.photo, repeatOf: E.id, screen: 'record' })),
+      tasteAgain: () => this.setState(Object.assign(this.blank(), { wine: E.wine, title: E.title || null, photo: E.photo, photoId: E.photoId ?? null, repeatOf: E.id, screen: 'record' })),
       compareFromEntry: () => this.setState({ screen: 'journal', selecting: true, sel: [E.id] }),
 
       /* compare */
       cmpHeads: cmpHeads, cmpRows: cmpRows, standOut: standOut,
       swapCmp: () => this.setState({ cmp: [B.id, A.id] }),
-      tasteSideBySide: () => this.startAB({ wine: A.wine, name: A.wine ? null : A.title ?? null, photo: A.photo }, { wine: B.wine, name: B.wine ? null : B.title ?? null, photo: B.photo }),
+      tasteSideBySide: () => this.startAB({ wine: A.wine, name: A.wine ? null : A.title ?? null, photo: A.photo, photoId: A.photoId ?? null }, { wine: B.wine, name: B.wine ? null : B.title ?? null, photo: B.photo, photoId: B.photoId ?? null }),
 
       /* A/B screens */
       isAbSetup: scr === 'abSetup', isAbRecord: scr === 'abRecord', isAbReview: scr === 'abReview', isAbView: scr === 'abView',
       abSetupBack: () => { this.cancelAdvance(); this.setState({ screen: (ab && ab.back && ab.back.indexOf('ab') !== 0 ? ab.back : 'journal') as Screen }); },
       abSlots: [slotTile('a'), slotTile('b')],
       abGlassPhoto: !!(ab && ab.glassPhoto), abGlassPhotoLabel: ab && ab.glassPhoto ? 'Retake photo of the glasses' : 'Photograph the glasses (optional)',
-      toggleGlassPhoto: () => { this.setAbPatch({ glassPhoto: true }); this.toast('Glasses photographed. A left, B right.'); },
-      setOpen: () => this.setAbPatch({ blind: false }), setBlind: () => this.setAbPatch({ blind: true }),
+      toggleGlassPhoto: () => { if (this.props.photos) { this.setState({ camera: true, camTarget: 'glasses' }); return; } this.setAbPatch({ glassPhoto: true }); this.toast('Glasses photographed. A left, B right.'); },
+      setOpen: () => this.setAbPatch({ blind: false }), setBlind: () => this.setBlind(),
       abOpenPressed: ab && !ab.blind ? 'true' : 'false', abBlindPressed: ab && ab.blind ? 'true' : 'false',
       abOpenStyle: segBtn(!!(ab && !ab.blind)), abBlindStyle: segBtn(!!(ab && ab.blind)),
       abModeNote: ab && ab.blind ? 'Hand the phone to whoever poured so they can name A and B. Names stay hidden from you until you save.' : 'An open comparison: you know which is which. Perfectly useful, just not blind.',
@@ -887,11 +956,11 @@ export class AnosmiaLogic extends DCLogic<Props, State> {
       /* slot sheet */
       abSlotOpen: !!(st.abSlot && ab), abSlotLetter: st.abSlot ? st.abSlot.toUpperCase() : 'A',
       abSlotMark: this.markStyle(st.abSlot === 'b' ? 'B' : 'A', 34, false),
-      abSlotTitle: 'What’s in glass ' + (st.abSlot ? st.abSlot.toUpperCase() : 'A') + '?', abSlotBlind: !!(ab && ab.blind && scr === 'abSetup'),
+      abSlotTitle: 'What’s in glass ' + (st.abSlot ? st.abSlot.toUpperCase() : 'A') + '?', abSlotBlind: !!(ab && ab.blind),
       abWineOpts: abWineOpts, abSlotName: st.abSlotName || '', onAbSlotName: (e: Change) => this.setState({ abSlotName: e.target.value }),
       useAbName: () => { const n = (this.state.abSlotName || '').trim(); if (n) this.abSetSlot(st.abSlot!, { wine: null, name: n }); },
       abSnapLabelText: slotW && slotW.photo ? 'Photo saved' : 'Snap the label',
-      abSnapLabel: () => { this.abSetSlot(st.abSlot!, { photo: true }); this.toast('Label photo saved to glass ' + st.abSlot!.toUpperCase() + '.'); },
+      abSnapLabel: () => { if (this.props.photos) { this.setState({ camera: true, camTarget: st.abSlot! }); return; } this.abSetSlot(st.abSlot!, { photo: true }); this.toast('Label photo saved to glass ' + st.abSlot!.toUpperCase() + '.'); },
       abLeaveUnnamed: () => this.abSetSlot(st.abSlot!, { wine: null, name: null }),
       abCloseSlot: () => this.setState({ abSlot: null }),
 
@@ -899,7 +968,7 @@ export class AnosmiaLogic extends DCLogic<Props, State> {
       sv: sv || { glasses: [], rows: [], refs: [], lbGroups: [] },
       toggleLookBack: () => this.setState({ lbOpen: !st.lbOpen }), toggleRefs: () => this.setState({ refsOpen: !st.refsOpen }),
       goJournalSessions: () => this.setState({ screen: 'journal', jTab: 'sessions', selecting: false, sel: [] }),
-      repeatAB: () => { if (!SV) return; this.startAB({ wine: SV.a.wine, name: SV.a.name, photo: SV.a.photo }, { wine: SV.b.wine, name: SV.b.name, photo: SV.b.photo }, { blind: SV.blind, repeatOf: SV.id, back: 'abView' }); },
+      repeatAB: () => { if (!SV) return; this.startAB({ wine: SV.a.wine, name: SV.a.name, photo: SV.a.photo, photoId: SV.a.photoId ?? null }, { wine: SV.b.wine, name: SV.b.name, photo: SV.b.photo, photoId: SV.b.photoId ?? null }, { blind: false, repeatOf: SV.id, back: 'abView' }); },
 
       /* chooser + journal tabs */
       chooser: !!st.chooser, openChooser: () => this.setState({ chooser: true }), closeChooser: () => this.setState({ chooser: false }),
@@ -913,7 +982,13 @@ export class AnosmiaLogic extends DCLogic<Props, State> {
       resumeAB: abInProgress && scr === 'journal', resumeText: 'Unfinished A vs B · ' + abAnswered + ' of 6 answered',
       resume: () => this.setState({ screen: abAnswered === 0 ? 'abSetup' : 'abRecord' }),
       hasToast: !!st.toast, toast: st.toast, isDemo: !!this.props.demo,
-      frameW: dims[0], frameH: dims[1]
+      frameW: dims[0], frameH: dims[1],
+      frameStyle: (this.props.fill ? 'width: 100%; height: 100%;' : 'width: ' + dims[0] + 'px; height: ' + dims[1] + 'px;')
+        + ' position: relative; overflow: hidden; background-color: #F5ECD7; color: #1E1416; font-size: 15px; line-height: 1.4',
+      // Full-screen use adds the bottom safe area, as the prototype's docks and sheets already do.
+      welcomeClass: this.props.fill ? 'fade welcome-fill' : 'fade',
+      welcomeStyle: 'position: absolute; inset: 0; display: flex; flex-direction: column; padding: 18px 20px '
+        + (this.props.fill ? 'calc(22px + env(safe-area-inset-bottom, 0px))' : '22px') + '; box-sizing: border-box'
     };
   }
 }

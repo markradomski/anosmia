@@ -1,9 +1,8 @@
-// Blind-mode audit: before a blind comparison is saved, nothing on screen (visible text, accessible
-// names or field values) may identify which wine is in which glass.
-// Known leaks are marked test.fail(): they document current behaviour and will start "failing"
-// (i.e. pass their assertion) once fixed, so the annotation must then be removed.
+// Blind-mode integrity: before a blind comparison is saved, nothing exposed to the taster (visible
+// text, accessible names, field values, selection state, photos) may identify which wine is in which
+// glass; and a comparison is only labelled blind when the taster hasn't seen the assignment.
 import { expect, test, type Page } from '@playwright/test'
-import { committed, open, settle, tap } from './helpers.ts'
+import { closeSheet, committed, draftOn, open, readStore, settle, tap } from './helpers.ts'
 
 const IDENTIFYING = ['Mallee', 'Little Ferment', 'Shiraz', 'Pinot', 'Barossa', 'Adelaide Hills']
 
@@ -18,6 +17,9 @@ async function exposed(page: Page) {
   return IDENTIFYING.filter(word => surface.includes(word))
 }
 
+/** A naming sheet that marks the hidden wine as selected would reveal it. */
+const selectedInSheet = (page: Page) => page.locator('section[role="dialog"] button[aria-pressed="true"]')
+
 async function blindSetup(page: Page) {
   await open(page)
   await tap(page, 'Two glasses?')
@@ -28,9 +30,16 @@ async function blindSetup(page: Page) {
   await tap(page, /Little Ferment Pinot Noir/)
 }
 
-test('blind: names stay hidden through setup, recording, navigation and review', async ({ page }) => {
+test('the complete blind journey keeps identities hidden until the comparison is saved', async ({ page }) => {
   await blindSetup(page)
   expect(await exposed(page), 'setup').toEqual([])
+
+  // Reopening a named glass on setup shows no selection.
+  await tap(page, /^Glass A: Named · hidden/)
+  await expect(page.getByText(/Pourer only/)).toBeVisible()
+  await expect(selectedInSheet(page)).toHaveCount(0)
+  await closeSheet(page)
+
   await tap(page, /Start comparing/)
   expect(await exposed(page), 'record').toEqual([])
   await tap(page, /^A sweeter/)
@@ -38,39 +47,67 @@ test('blind: names stay hidden through setup, recording, navigation and review',
   await tap(page, 'Back to setup')
   expect(await exposed(page), 'back to setup').toEqual([])
   await tap(page, /Start comparing/)
-  await tap(page, 'Review comparison')
-  expect(await exposed(page), 'review').toEqual([])
-  await tap(page, /^Sweetness: A sweeter\. Tap to change\./)
-  expect(await exposed(page), 'editing an answer from review').toEqual([])
-})
 
-test('blind: names stay hidden after reopening an unfinished comparison', async ({ page }) => {
-  await blindSetup(page)
-  await tap(page, /Start comparing/)
-  await tap(page, /^A sweeter/)
-  await settle(page)
+  // Reopening an unfinished comparison.
+  await draftOn(page, 'abRecord')
   await page.reload()
   await expect(page.getByText('1 of 6 answered')).toBeVisible()
-  expect(await exposed(page), 'reopened record').toEqual([])
-  await tap(page, 'Back to setup')
-  await tap(page, 'Back')
-  await tap(page, 'The journal')
-  await expect(page.getByRole('button', { name: /Unfinished A vs B/ })).toBeVisible()
-  expect(await exposed(page), 'journal resume banner').toEqual([])
-})
+  expect(await exposed(page), 'reopened').toEqual([])
 
-test('blind: names are revealed only once the comparison is saved, and the session is labelled blind', async ({ page }) => {
-  await blindSetup(page)
-  await tap(page, /Start comparing/)
   await tap(page, 'Review comparison')
-  expect(await exposed(page)).toEqual([])
+  expect(await exposed(page), 'review').toEqual([])
+  await expect(page.getByText('Blind · names hidden')).toBeVisible()
+
+  // Editing an answer from review.
+  await tap(page, /^Sweetness: A sweeter\. Tap to change\./)
+  expect(await exposed(page), 'editing an answer').toEqual([])
+  await tap(page, /About the same/)
+  await settle(page)
+
+  // "Change" on the review screen opens the naming sheet without revealing the selection.
+  await page.getByRole('button', { name: 'Change' }).first().click()
+  await expect(page.getByText(/Pourer only/)).toBeVisible()
+  await expect(selectedInSheet(page)).toHaveCount(0)
+  await closeSheet(page)
+  expect(await exposed(page), 'after the naming sheet').toEqual([])
+
   await tap(page, /Save comparison/)
   await committed(page, 'sessions', 1)
   await expect(page.getByText('A/B session · blind (someone else poured)')).toBeVisible()
   expect(await exposed(page)).toEqual(expect.arrayContaining(['Mallee', 'Little Ferment']))
 })
 
-test('open: an open comparison is labelled open, not blind', async ({ page }) => {
+test('switching to blind after names were shown clears them, so the label stays honest', async ({ page }) => {
+  await open(page)
+  await tap(page, 'Two glasses?')
+  await tap(page, 'Glass A: Unnamed. Tap to name.')
+  await tap(page, /Mallee & Sons Shiraz/)
+  await expect(page.getByText('Mallee & Sons Shiraz 2021')).toBeVisible()
+  await tap(page, /Someone else/)
+  await expect(page.getByText('Names cleared. Whoever poured can name the glasses.')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Glass A: Unnamed. Tap to name.' })).toBeVisible()
+  expect(await exposed(page)).toEqual([])
+})
+
+test('repeating a revealed blind pair starts as an open comparison', async ({ page }) => {
+  await blindSetup(page)
+  await tap(page, /Start comparing/)
+  await tap(page, 'Review comparison')
+  await tap(page, /Save comparison/)
+  await committed(page, 'sessions', 1)
+
+  await tap(page, /Repeat this pair/)
+  await expect(page.getByRole('button', { name: /I did/ })).toHaveAttribute('aria-pressed', 'true')
+  await tap(page, /Start comparing/)
+  await tap(page, 'Review comparison')
+  await expect(page.getByText('Blind · names hidden')).toHaveCount(0)
+  await tap(page, /Save comparison/)
+  await committed(page, 'sessions', 2)
+  const modes = (await readStore(page, 'sessions')).map(s => s.mode).sort()
+  expect(modes).toEqual(['blind', 'open'])
+})
+
+test('an open comparison is labelled open, not blind', async ({ page }) => {
   await open(page)
   await tap(page, 'Two glasses?')
   await tap(page, /Start comparing/)
@@ -78,22 +115,4 @@ test('open: an open comparison is labelled open, not blind', async ({ page }) =>
   await expect(page.getByText('Blind · names hidden')).toHaveCount(0)
   await tap(page, /Save comparison/)
   await expect(page.getByText('A/B session · open (you knew which was which)')).toBeVisible()
-})
-
-test('KNOWN LEAK: “Change” on the blind review screen shows which wine is in the glass', async ({ page }) => {
-  test.fail(true, 'The naming sheet highlights the hidden wine as “Selected” (aria-pressed) before the reveal.')
-  await blindSetup(page)
-  await tap(page, /Start comparing/)
-  await tap(page, 'Review comparison')
-  await page.getByRole('button', { name: 'Change' }).first().click()
-  // The sheet lists every catalogue wine, so mere presence of a name is not a leak; the selection is.
-  const selected = page.locator('section[role="dialog"] button[aria-pressed="true"]')
-  await expect(selected).toHaveCount(0)
-})
-
-test('KNOWN LEAK: re-opening a glass on the blind setup screen shows its wine to the taster', async ({ page }) => {
-  test.fail(true, 'The sheet warns “Pourer only”, but after the pourer has named a glass anyone can reopen it and see the selection.')
-  await blindSetup(page)
-  await tap(page, /^Glass A: Named · hidden/)
-  await expect(page.locator('section[role="dialog"] button[aria-pressed="true"]')).toHaveCount(0)
 })

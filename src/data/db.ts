@@ -59,6 +59,10 @@ export class Db {
     return done(this.db.transaction(store).objectStore(store).getAll())
   }
 
+  async keys(store: StoreName): Promise<string[]> {
+    return done(this.db.transaction(store).objectStore(store).getAllKeys()) as Promise<string[]>
+  }
+
   async get(store: StoreName, key: string): Promise<unknown> {
     return done(this.db.transaction(store).objectStore(store).get(key))
   }

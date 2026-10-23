@@ -77,11 +77,11 @@ test('an interrupted tasting resumes where it was left', async ({ page }) => {
 test('an A/B comparison resumes mid-way and saves as a blind session', async ({ page }) => {
   await open(page)
   await tap(page, 'Two glasses?')
+  await tap(page, /Someone else/)
   await tap(page, 'Glass A: Unnamed. Tap to name.')
   await tap(page, /Mallee & Sons Shiraz/)
   await tap(page, 'Glass B: Unnamed. Tap to name.')
   await tap(page, /Little Ferment Pinot Noir/)
-  await tap(page, /Someone else/)
   await tap(page, /Start comparing/)
   await tap(page, /^A sweeter/)
   await settle(page)

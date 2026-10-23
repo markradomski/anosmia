@@ -124,3 +124,25 @@ describe('the resumable draft', () => {
     for (const key of ['reveal', 'lbOpen', 'refsOpen', 'guide', 'camera', 'abSlot']) expect(text).not.toContain(`"${key}"`)
   })
 })
+
+describe('label photos', () => {
+  it('stores a real photo by id and keeps the prototype’s simulated flag distinct', () => {
+    const l = logic()
+    const base: Entry = { id: 'n9', wine: null, title: 'Unnamed wine', photo: true, date: '', obs: l.emptyObs(), notes: '', enjoy: null }
+    const at = '2026-10-23T09:30:00.000Z'
+    expect(entryToRecord({ ...base, photoId: 'p1' }, at).photo).toEqual({ kind: 'image', photoId: 'p1' })
+    expect(entryToRecord(base, at).photo).toEqual({ kind: 'simulated' })
+    expect(entryToRecord({ ...base, photo: false }, at).photo).toEqual({ kind: 'none' })
+    expect(recordToEntry(entryToRecord({ ...base, photoId: 'p1' }, at))).toEqual({ ...base, photoId: 'p1', date: displayDate(at) })
+  })
+
+  it('round-trips slot and glasses photos on sessions and drafts', () => {
+    const l = logic()
+    const s: Session = { ...l.seedSessions()[0], a: { wine: null, name: null, photo: true, photoId: 'pa' }, glassPhoto: true, glassPhotoId: 'pg' }
+    const back = recordToSession(JSON.parse(JSON.stringify(sessionToRecord(s, '2026-10-16T18:00:00.000Z'))))
+    expect(back.a.photoId).toBe('pa')
+    expect(back.glassPhotoId).toBe('pg')
+    l.setState({ photo: true, photoId: 'pt' })
+    expect(draftToState(stateToDraft(l.state, new Date().toISOString())).photoId).toBe('pt')
+  })
+})
