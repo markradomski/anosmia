@@ -7,10 +7,10 @@ import { committed, open, readStore, settle, tap } from './helpers.ts'
 
 const FAKE_CAMERA = ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream']
 
-async function withBrowser(args: string[], permissions: string[], run: (page: Page) => Promise<void>) {
+async function withBrowser(args: string[], permissions: string[], run: (page: Page) => Promise<void>, baseURL = APP) {
   const browser: Browser = await chromium.launch({ args })
   try {
-    const context = await browser.newContext({ baseURL: APP, viewport: { width: 390, height: 844 }, permissions })
+    const context = await browser.newContext({ baseURL, viewport: { width: 390, height: 844 }, permissions })
     await run(await context.newPage())
   } finally {
     await browser.close()
@@ -101,12 +101,24 @@ test('a photo can be previewed, replaced and removed; unused photos are deleted'
   })
 })
 
-test('with no camera, the user is told and can choose an image file instead', async () => {
-  await withBrowser([], ['camera'], async page => {
+/** Make getUserMedia fail the way a browser does, e.g. NotFoundError when there is no camera. */
+const failCamera = (page: Page, name: string) =>
+  page.addInitScript(n => {
+    navigator.mediaDevices.getUserMedia = () => Promise.reject(new DOMException('Simulated', n))
+  }, name)
+
+// The phone's situation: plain http on a network address. Chromium resolves this made-up hostname to
+// the local test server, so the page is a genuinely insecure context (no flags weaken security).
+const LAN_HOST = 'anosmia-lan.test'
+const LAN = APP.replace('127.0.0.1', LAN_HOST)
+
+test('over plain http on a network address, the camera is explained as needing https, and choosing a photo still works', async () => {
+  await withBrowser([`--host-resolver-rules=MAP ${LAN_HOST} 127.0.0.1`, ...FAKE_CAMERA], ['camera'], async page => {
     await open(page)
+    expect(await page.evaluate(() => [window.isSecureContext, typeof navigator.mediaDevices])).toEqual([false, 'undefined'])
     await tap(page, 'Start tasting')
     await tap(page, 'Snap the label')
-    await expect(page.getByRole('alert')).toHaveText('No camera is available here. You can choose a photo instead.')
+    await expect(page.getByRole('alert')).toHaveText('The camera only works over a secure (https) connection, and this address isn’t one. You can choose a photo instead.')
     await page.getByTestId('label-photo-file').setInputFiles(await pngFile(page))
     await expect(page.getByAltText('Label photo preview')).toBeVisible()
     await tap(page, 'Use photo')
@@ -121,6 +133,28 @@ test('with no camera, the user is told and can choose an image file instead', as
       return [bmp.width, bmp.height]
     })
     expect(size).toEqual([1600, 1200])
+  }, LAN)
+})
+
+test('with no camera on the device, the user is told so and can choose a photo', async () => {
+  await withBrowser(FAKE_CAMERA, ['camera'], async page => {
+    await failCamera(page, 'NotFoundError')
+    await open(page)
+    await tap(page, 'Start tasting')
+    await tap(page, 'Snap the label')
+    await expect(page.getByRole('alert')).toHaveText('No camera was found on this device. You can choose a photo instead.')
+    await expect(page.getByRole('button', { name: 'Choose photo' })).toBeVisible()
+  })
+})
+
+test('when the camera fails to start (e.g. in use), the user is told so and can choose a photo', async () => {
+  await withBrowser(FAKE_CAMERA, ['camera'], async page => {
+    await failCamera(page, 'NotReadableError')
+    await open(page)
+    await tap(page, 'Start tasting')
+    await tap(page, 'Snap the label')
+    await expect(page.getByRole('alert')).toHaveText('The camera couldn’t start. Another app may be using it. Close it and try again, or choose a photo instead.')
+    await expect(page.getByRole('button', { name: 'Choose photo' })).toBeVisible()
   })
 })
 

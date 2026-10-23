@@ -1,7 +1,14 @@
 /// <reference types="vitest/config" />
 import react from '@vitejs/plugin-react'
+import { readFileSync } from 'node:fs'
 import { defineConfig } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
+
+// Optional HTTPS for testing on a phone over Wi-Fi (see device-testing.md): set both variables to a
+// locally trusted certificate and key, kept outside git (e.g. in private/). Off unless both are set.
+const httpsCert = process.env.ANOSMIA_HTTPS_CERT
+const httpsKey = process.env.ANOSMIA_HTTPS_KEY
+const https = httpsCert && httpsKey ? { cert: readFileSync(httpsCert), key: readFileSync(httpsKey) } : undefined
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -36,6 +43,12 @@ export default defineConfig({
       },
     }),
   ],
+  preview: {
+    // e2e/camera.spec.ts reaches the preview server by this name (mapped inside the test browser only)
+    // to reproduce a phone on plain http. `.test` is reserved and never resolves publicly.
+    allowedHosts: ['anosmia-lan.test'],
+    https,
+  },
   test: {
     include: ['src/**/*.test.ts'],
     environment: 'node',

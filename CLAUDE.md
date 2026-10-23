@@ -40,6 +40,10 @@ The starting point is a Claude Design HTML export containing a large React class
   - Normal mode fills the viewport (`src/styles/app.css`: dynamic viewport height, safe-area padding, a centred 480 px column on wide screens). `index.html` sets `viewport-fit=cover` and `interactive-widget=resizes-content`, so Android's keyboard shrinks the layout instead of covering bottom bars.
   - `?demo` and `?device=` keep the prototype's fixed frame.
 - Camera (Phase 3): `src/camera/LabelCamera.tsx` replaces the simulated camera in normal mode only; demo keeps the simulation. It uses the live camera when allowed and always offers choosing an image file. It handles denied and missing cameras, and has no recognition.
+- Camera failure reasons (`src/camera/cameraProblem.ts`): insecure context, permission denied, no camera, camera failed to start, and unsupported browser. Each has its own message, and choosing a photo is always offered.
+  - On the Nothing Phone over plain `http://<LAN IP>` the page is not a secure context, so Chrome removes `navigator.mediaDevices`. Confirmed in Chromium.
+  - Secure testing methods are in `device-testing.md`: Wireless debugging + `adb reverse` to `localhost`, or opt-in HTTPS via `ANOSMIA_HTTPS_CERT`/`ANOSMIA_HTTPS_KEY` with a local mkcert certificate kept in `private/`. Never use Chrome flags that treat insecure origins as secure, and never expose the app publicly without approval.
+- Record overview (`src/anosmia/revealActiveRow.ts`): the active sensation row is scrolled into view above the thumb dock whenever it changes. Only the overview's own scroll container moves, and only as far as needed: instantly when the screen opens, smoothly otherwise, instantly with reduced motion. Rows and docks are marked with `data-active` / `data-dock`, which the parity check ignores.
 - PWA (Phase 3): `vite-plugin-pwa` in `vite.config.ts`.
   - The manifest uses icons rendered from the design-system mark by `scripts/make-icons.mjs`.
   - The service worker precaches only the app's own built files. Updates wait until the app is fully closed.

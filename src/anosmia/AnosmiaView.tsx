@@ -198,7 +198,7 @@ export function AnosmiaView({ v, overlay }: { v: Vals; overlay?: ReactNode }) {
               {v.rows.map((row, i2) => (
                 <Fragment key={i2}>
                   {" "}
-                  <button onClick={row.tap} aria-label={row.aria} ref={css(row.style)}>
+                  <button onClick={row.tap} aria-label={row.aria} data-active={row.activeAttr} ref={css(row.style)}>
                     <span className="f-mono" style={{ fontSize: "10.5px", width: "22px", textAlign: "left", flex: "none" }}>{row.num}</span>
                     {" "}
                     <span className="f-disp" style={{ fontSize: "19px", fontWeight: "650", flex: "1", textAlign: "left" }}>{row.name}</span>
@@ -948,7 +948,7 @@ export function AnosmiaView({ v, overlay }: { v: Vals; overlay?: ReactNode }) {
               {v.abRows.map((r, i24) => (
                 <Fragment key={i24}>
                   {" "}
-                  <button onClick={r.tap} aria-label={r.aria} ref={css(r.rowStyle)}>
+                  <button onClick={r.tap} aria-label={r.aria} data-active={r.activeAttr} ref={css(r.rowStyle)}>
                     <span style={{ fontWeight: "650", fontSize: "14px", width: "74px", flex: "none", textAlign: "left" }}>{r.name}</span>
                     {" "}
                     <span aria-hidden="true" ref={css(r.track)}>
@@ -1241,7 +1241,7 @@ export function AnosmiaView({ v, overlay }: { v: Vals; overlay?: ReactNode }) {
             </>
           ) : null}
           {" "}
-          <section aria-label="Comparison controls" className={v.abDockCls} ref={css(v.abDockStyle)}>
+          <section aria-label="Comparison controls" data-dock="" className={v.abDockCls} ref={css(v.abDockStyle)}>
             <span role="status" aria-live="polite" className="sr">{v.liveMsg}</span>
             {" "}
             <div aria-hidden="true" style={{ display: "flex", gap: "4px", alignItems: "center", height: "6px" }}>
@@ -1415,7 +1415,7 @@ export function AnosmiaView({ v, overlay }: { v: Vals; overlay?: ReactNode }) {
             </>
           ) : null}
           {" "}
-          <section aria-label="Sensation controls" className={v.dockCls} ref={css(v.dockStyle)}>
+          <section aria-label="Sensation controls" data-dock="" className={v.dockCls} ref={css(v.dockStyle)}>
             <span role="status" aria-live="polite" className="sr">{v.liveMsg}</span>
             {" "}
             <div aria-hidden="true" style={{ display: "flex", gap: "4px", alignItems: "center", height: "6px" }}>

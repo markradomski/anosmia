@@ -1,9 +1,10 @@
-import { useEffect } from 'react'
+import { useEffect, useLayoutEffect, useRef } from 'react'
 import { LabelCamera } from '../camera/LabelCamera'
 import { useDCLogic } from '../dc/DCLogic'
 import { referencedPhotoIds, type Persistence } from '../data/persistence'
 import { AnosmiaLogic, type PhotoTarget, type Props } from './AnosmiaLogic'
 import { AnosmiaView } from './AnosmiaView'
+import { revealActiveRow } from './revealActiveRow'
 
 // Defaults match the prototype's declared props.
 const DEFAULTS: Props = { device: '390 × 844', startScreen: 'welcome' }
@@ -21,6 +22,24 @@ export function Anosmia({ persistence, ...props }: Props & { persistence?: Persi
   useEffect(() => photos?.subscribe(() => logic.setState({})), [logic, photos])
 
   const st = logic.state
+
+  // Keep the active sensation visible above the thumb dock whenever it changes (auto-advance,
+  // Previous/Next, tapping a row) or the record screen opens. Instant on arrival, smooth within it.
+  const activeRow = st.screen === 'record' ? 'record:' + st.focus : st.screen === 'abRecord' ? 'ab:' + st.ab?.focus : null
+  const lastScreen = useRef<string | null>(null)
+  useLayoutEffect(() => {
+    const screen = activeRow && activeRow.split(':')[0]
+    if (activeRow) revealActiveRow(document, lastScreen.current === screen)
+    lastScreen.current = screen
+  }, [activeRow])
+  useEffect(() => {
+    if (!activeRow) return
+    // The usable height can change under the user (browser toolbars, rotation).
+    const onResize = () => revealActiveRow(document, false)
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [activeRow])
+
   let overlay = null
   if (photos && st.camera) {
     const target = st.camTarget

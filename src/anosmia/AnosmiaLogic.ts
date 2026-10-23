@@ -619,6 +619,7 @@ export class AnosmiaLogic extends DCLogic<Props, State> {
       return { num: '0' + (i + 1), name: s.name, chip: c.text, chipStyle: c.style, bars: c.bars,
         aria: s.name + ': ' + this.valOf(s, v) + '. Tap to make this the active sensation.',
         tap: () => { this.cancelAdvance(); this.setState({ focus: s.k, confirmK: null }); },
+        activeAttr: foc ? 'true' : undefined,
         style: 'display:flex;align-items:center;gap:10px;width:100%;height:50px;box-sizing:border-box;padding:0 8px 0 10px;border:0;border-bottom:1px solid rgba(30,20,22,.2);text-align:left;transition:background .2s;' + (foc ? 'background:#F2CF5B;border-radius:10px;' : 'background:transparent;') };
     });
 
@@ -735,6 +736,7 @@ export class AnosmiaLogic extends DCLogic<Props, State> {
       return Object.assign(L, { name: s.short, aria: s.name + ': ' + this.abVal(s.k, v) + '. Tap to make this the active sensation.', editAria: s.name + ': ' + this.abVal(s.k, v) + '. Tap to change.',
         tap: () => { this.cancelAdvance(); this.setState({ ab: Object.assign({}, this.state.ab, { focus: s.k }), confirmK: null }); },
         edit: () => { this.cancelAdvance(); this.setState({ ab: Object.assign({}, this.state.ab, { focus: s.k }), abEditing: true, abGuide: false, confirmK: null }); },
+        activeAttr: foc ? 'true' : undefined,
         rowStyle: 'display:flex;align-items:center;gap:8px;width:100%;height:48px;box-sizing:border-box;padding:0 8px;border:0;border-bottom:1px solid rgba(30,20,22,.2);text-align:left;transition:background .2s;' + (foc ? 'background:#F2CF5B;border-radius:10px;' : 'background:transparent;') });
     });
     const strip = (which: 'a' | 'b') => ({ letter: which.toUpperCase(), mark: this.markStyle(which.toUpperCase(), 28, false), name: abName(which),

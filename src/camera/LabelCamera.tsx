@@ -4,12 +4,13 @@
 // Nothing leaves the device; there is no label recognition.
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { PhotoError } from '../data/photos'
+import { CAMERA_PROBLEM_MESSAGES, cameraProblem, cameraUnavailable, type CameraProblem } from './cameraProblem'
 
 type Stage =
   | { kind: 'existing' }
   | { kind: 'live' }
   | { kind: 'review'; blob: Blob; url: string }
-  | { kind: 'problem'; reason: 'denied' | 'unavailable' }
+  | { kind: 'problem'; reason: CameraProblem }
 
 export interface LabelCameraProps {
   /** What is being photographed, e.g. "this tasting" or "glass A". */
@@ -47,18 +48,10 @@ const S = {
 const corner = (pos: CSSProperties, sides: CSSProperties): CSSProperties => ({ position: 'absolute', width: '26px', height: '26px', ...pos, ...sides })
 const LINE = '3px solid #F2CF5B'
 
-const PROBLEM = {
-  denied: 'Camera access is blocked for Anosmia. You can allow it in your browser’s site settings, or choose a photo instead.',
-  unavailable: 'No camera is available here. You can choose a photo instead.',
-}
-
-/** The live viewfinder, or straight to "unavailable" when the browser has no camera API (e.g. not HTTPS). */
-const liveStage = (): Stage =>
-  typeof (navigator.mediaDevices as MediaDevices | undefined)?.getUserMedia === 'function' ? { kind: 'live' } : { kind: 'problem', reason: 'unavailable' }
-
-function problemFor(err: unknown): 'denied' | 'unavailable' {
-  const name = err instanceof DOMException ? err.name : ''
-  return name === 'NotAllowedError' || name === 'SecurityError' ? 'denied' : 'unavailable'
+/** The live viewfinder, or straight to the reason the camera can't be used (e.g. not https). */
+const liveStage = (): Stage => {
+  const reason = cameraUnavailable({ isSecureContext: window.isSecureContext, mediaDevices: navigator.mediaDevices as MediaDevices | undefined })
+  return reason ? { kind: 'problem', reason } : { kind: 'live' }
 }
 
 export function LabelCamera({ subject, existingUrl, hasExisting, hideExisting, onUse, onRemove, onClose }: LabelCameraProps) {
@@ -81,7 +74,7 @@ export function LabelCamera({ subject, existingUrl, hasExisting, hideExisting, o
         if (video.current) video.current.srcObject = s
       })
       .catch(err => {
-        if (!cancelled) setStage({ kind: 'problem', reason: problemFor(err) })
+        if (!cancelled) setStage({ kind: 'problem', reason: cameraProblem(err) })
       })
     return () => {
       cancelled = true
@@ -159,7 +152,7 @@ export function LabelCamera({ subject, existingUrl, hasExisting, hideExisting, o
         {stage.kind === 'existing' && (hideExisting
           ? <p style={S.message}>This photo stays hidden until the comparison is saved.</p>
           : existingUrl ? <img src={existingUrl} alt={`Label photo for ${subject}`} style={{ ...S.fill, objectFit: 'contain' }} /> : null)}
-        {stage.kind === 'problem' && <p role="alert" style={S.message}>{PROBLEM[stage.reason]}</p>}
+        {stage.kind === 'problem' && <p role="alert" style={S.message}>{CAMERA_PROBLEM_MESSAGES[stage.reason]}</p>}
       </div>
 
       {(stage.kind === 'live' || stage.kind === 'problem') && (

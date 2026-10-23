@@ -5,19 +5,66 @@ Record the date, Android version, Chrome version and result for each step.
 
 ## Setup
 
-The camera and app installation need a secure origin. Reach the Mac's server as `localhost` over USB:
+The camera, installation and offline use need a **secure context**: `https://`, or `localhost`.
+Plain `http://192.168.x.x:4173` over Wi-Fi is not one. Chrome then removes the camera API entirely, so
+the app explains that the camera needs a secure connection and offers *Choose photo* instead.
+(Confirmed in Chromium: on such an address `isSecureContext` is false and `navigator.mediaDevices`
+is undefined.) Use one of the two methods below. Neither weakens Chrome's security or exposes the
+app beyond your own devices.
 
-1. On the phone: Settings → About phone → tap *Build number* seven times; then System → Developer options → enable **USB debugging**. Connect by USB and accept the prompt.
-2. On the Mac (Android platform-tools installed):
+Start the app on the Mac first:
+```bash
+npm run build
+npx vite preview --port 4173 --host 127.0.0.1
+```
+
+### Method A (recommended): Wireless debugging, no cable or certificates
+
+The phone opens `http://localhost:4173`, which Chrome treats as secure. Phone and Mac must be on the same Wi-Fi.
+
+1. On the phone: Settings → About phone → tap **Build number** seven times. Then System → Developer options → turn on **Wireless debugging**.
+2. Tap **Wireless debugging** → **Pair device with pairing code**. Note the IP:port and the six-digit code.
+3. On the Mac (`adb` is in `~/Library/Android/sdk/platform-tools`):
    ```bash
-   npm run build
-   npx vite preview --port 4173 --host 127.0.0.1
+   adb pair <phone-ip>:<pairing-port>
+   ```
+   Enter the code. Then connect, using the IP:port shown on the Wireless debugging screen itself (not the pairing one):
+   ```bash
+   adb connect <phone-ip>:<port>
    adb reverse tcp:4173 tcp:4173
    ```
-3. On the phone, open Chrome at `http://localhost:4173`.
+4. On the phone, open Chrome at `http://localhost:4173`.
 
-(Opening `http://<mac-ip>:4173` over Wi-Fi also loads the app, but it is not a secure origin: the
-camera falls back to choosing a photo, and Chrome will not offer to install it.)
+(A USB cable with USB debugging works the same way: skip pairing and run `adb reverse tcp:4173 tcp:4173`.)
+
+### Method B: real HTTPS on the Mac's Wi-Fi address
+
+This uses a local certificate authority from [mkcert](https://github.com/FiloSottile/mkcert).
+**Security:** while installed, that authority's private key (on your Mac) could be used to impersonate
+any website to the phone. Never copy `rootCA-key.pem` anywhere, and remove the authority from the phone
+when testing is done.
+
+1. On the Mac:
+   ```bash
+   brew install mkcert
+   mkcert -install
+   ```
+   The second command adds the authority to the Mac's keychain and asks for your password.
+2. Make a certificate for the Mac's address. `private/` is git-ignored:
+   ```bash
+   mkdir -p private/certs
+   mkcert -cert-file private/certs/lan.pem -key-file private/certs/lan-key.pem 192.168.68.51 localhost
+   ```
+3. Copy **only** `rootCA.pem` from `mkcert -CAROOT` to the phone. On the phone: Settings → Security & privacy → More security settings → Encryption & credentials → **Install a certificate** → **CA certificate**.
+4. Serve over HTTPS:
+   ```bash
+   ANOSMIA_HTTPS_CERT=private/certs/lan.pem ANOSMIA_HTTPS_KEY=private/certs/lan-key.pem npx vite preview --port 4173 --host 0.0.0.0
+   ```
+   Open `https://192.168.68.51:4173` on the phone. It must load with no certificate warning; never click through one.
+5. When done, remove it on the phone: Encryption & credentials → **User credentials** → remove the mkcert authority. Delete `private/certs`. Optionally run `mkcert -uninstall` on the Mac.
+
+Each address keeps its own journal. Data saved at `http://192.168.68.51:4173`, `http://localhost:4173`
+and `https://192.168.68.51:4173` is stored separately on the phone.
 
 ## Checks
 
@@ -33,6 +80,7 @@ camera falls back to choosing a photo, and Chrome will not offer to install it.)
 3. Changing an existing answer does not move on.
 4. Tapping twice quickly does not answer the next sensation.
 5. *Previous* / *Next* / tapping a row straight after answering stays where you put it.
+6. Answer through to Finish: the Finish row scrolls into view above the dock and is never hidden behind it. Going back with *Previous*, tapping a half-hidden row, and *Keep tasting* from the summary all show the active row.
 
 ### C. Keyboard
 1. Find screen: tap the search field. The keyboard opens; *Taste without naming* / *Start tasting* stays visible above it.
@@ -45,8 +93,10 @@ camera falls back to choosing a photo, and Chrome will not offer to install it.)
 2. Take a photo → *Keep this photo?* → *Use photo*. The label tile shows the photo.
 3. *Retake photo* shows the saved photo with *Keep it* / *Retake* / *Remove photo*. Retake replaces it; Remove clears it.
 4. *Choose photo* opens Android's picker; a gallery image works the same way.
-5. Deny access: Chrome → ⋮ → Settings → Site settings → Camera → block `localhost:4173`. *Snap the label* now explains that access is blocked and offers *Choose photo*. Re-allow afterwards.
+5. Deny access: Chrome → ⋮ → Settings → Site settings → Camera → block the app's address. *Snap the label* now explains that access is blocked and offers *Choose photo*. Re-allow afterwards.
 6. Save a tasting with a photo, swipe Chrome away, reopen: the journal card and the entry show the photo.
+7. While another app (e.g. the system Camera) holds the camera, *Snap the label* should say the camera couldn't start, rather than that it's blocked or missing.
+8. Over plain `http://192.168.68.51:4173`, *Snap the label* says the camera needs a secure (https) connection, and *Choose photo* still works.
 
 ### E. Install
 1. Chrome ⋮ → *Install app* (or *Add to Home screen*).
