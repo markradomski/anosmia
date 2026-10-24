@@ -70,7 +70,7 @@ export interface State {
 export type PhotoTarget = 'tasting' | 'a' | 'b' | 'glasses'
 
 /** Local label photos (normal mode only; demo mode keeps the prototype's simulated camera). */
-export interface PhotoUrls { url(id: string): string | null }
+export interface PhotoUrls { photo(id: string): { url: string } | 'loading' | 'missing' }
 
 export interface Props {
   device?: Device | string; startScreen?: Screen | string
@@ -201,12 +201,18 @@ export class AnosmiaLogic extends DCLogic<Props, State> {
 
   /* ---------- visual helpers ---------- */
   /** Object URL of a stored label photo, if one is loaded. */
-  photoUrl(id: string | null | undefined) { return id && this.props.photos ? this.props.photos.url(id) : null; }
-  tileFor(w: Wine | null, hasPhoto: boolean, size: number, photoUrl?: string | null) {
+  /** A stored label photo's display state; undefined when there is no stored photo (none, or the prototype's simulated one). */
+  photoState(id: string | null | undefined) { return id && this.props.photos ? this.props.photos.photo(id) : undefined; }
+  tileFor(w: Wine | null, hasPhoto: boolean, size: number, photo?: ReturnType<AnosmiaLogic['photoState']>) {
+    // A stored photo that can't be found shows the prototype's "No photo" placeholder, never an empty frame.
+    if (hasPhoto && photo === 'missing') return this.drawnTile(w, false, size);
     const tile = this.drawnTile(w, hasPhoto, size);
-    if (!hasPhoto || !photoUrl) return tile;
-    // A real label photo replaces the drawn label; the drawn card is hidden.
-    return { ...tile, back: 'position:relative;width:100%;height:100%;overflow:hidden;background:#24161A url("' + photoUrl + '") center / cover no-repeat;', card: 'display:none;' };
+    if (!hasPhoto || !photo) return tile;
+    // A real label photo replaces the drawn label. display:block matters: in some screens this layer is
+    // an inline <span>, which would ignore width/height and collapse to nothing. While the photo loads
+    // (a few ms), the dark photo backdrop shows.
+    const image = typeof photo === 'object' ? ' url("' + photo.url + '") center / cover no-repeat' : '';
+    return { ...tile, back: 'display:block;position:relative;width:100%;height:100%;overflow:hidden;background:#24161A' + image + ';', card: 'display:none;' };
   }
   /** The prototype's drawn label tile (or the striped "no photo" tile). */
   drawnTile(w: Wine | null, hasPhoto: boolean, size: number) {
@@ -671,7 +677,7 @@ export class AnosmiaLogic extends DCLogic<Props, State> {
     const ins2 = mostU.u > 0 ? '“Can’t tell” came up most for ' + lc(mostU) + ' (' + mostU.u + ' of ' + J.length + '). That records uncertainty, not inability.' : 'No “can’t tell” answers yet. Suspicious, but fine.';
     const cards = J.map(e => {
       const id = this.ident(e); const si = st.sel.indexOf(e.id);
-      return { tile: this.tileFor(e.wine, e.photo, 171, this.photoUrl(e.photoId)), date: e.date, title: id.title, sub: id.sub,
+      return { tile: this.tileFor(e.wine, e.photo, 171, this.photoState(e.photoId)), date: e.date, title: id.title, sub: id.sub,
         note: e.notes ? '“' + e.notes + '”' : '', enjoy: e.enjoy ? this.enjoyLabels()[e.enjoy - 1] : '',
         fp: this.fp(e.obs, '#5A1427', 1), tap: () => this.tapCard(e.id), selecting: st.selecting,
         checkText: si >= 0 ? (si === 0 ? 'A' : 'B') : '',
@@ -683,7 +689,7 @@ export class AnosmiaLogic extends DCLogic<Props, State> {
     /* entry */
     const E = J.find(e => e.id === st.entryId) || J[0] || this.blankEntry();
     const eid = this.ident(E);
-    const ent = { tile: this.tileFor(E.wine, E.photo, 358, this.photoUrl(E.photoId)), title: eid.title, sub: eid.long, date: E.date, notes: E.notes, hasNotes: !!E.notes,
+    const ent = { tile: this.tileFor(E.wine, E.photo, 358, this.photoState(E.photoId)), title: eid.title, sub: eid.long, date: E.date, notes: E.notes, hasNotes: !!E.notes,
       enjoy: E.enjoy ? this.enjoyLabels()[E.enjoy - 1] : 'Not rated', hidden: !st.reveal, shown: !!st.reveal,
       rows: S.map(s => ({ name: s.name, cells: this.cells(E.obs[s.k], '#5A1427', false, 18), val: this.valOf(s, E.obs[s.k]), valStyle: this.valStyle(E.obs[s.k]) })) };
 
@@ -693,7 +699,7 @@ export class AnosmiaLogic extends DCLogic<Props, State> {
     const A = J.find(e => e.id === pair[0]) || J[0] || this.blankEntry();
     const B = J.find(e => e.id === pair[1]) || J[1] || this.blankEntry();
     const ia = this.ident(A), ib = this.ident(B);
-    const head = (e: Entry, id: ReturnType<AnosmiaLogic['ident']>, color: string, side: string) => ({ tile: this.tileFor(e.wine, e.photo, 54, this.photoUrl(e.photoId)), fp: this.fp(e.obs, color, 0.8), title: id.title, sub: id.sub, date: e.date, side: side,
+    const head = (e: Entry, id: ReturnType<AnosmiaLogic['ident']>, color: string, side: string) => ({ tile: this.tileFor(e.wine, e.photo, 54, this.photoState(e.photoId)), fp: this.fp(e.obs, color, 0.8), title: id.title, sub: id.sub, date: e.date, side: side,
       key: this.markStyle(side, 18, false), enjoy: e.enjoy ? this.enjoyLabels()[e.enjoy - 1] : 'Not rated',
       boxStyle: 'border-top:4px solid ' + color + ';padding-top:10px;min-width:0;' });
     const cmpHeads = [head(A, ia, CA, 'A'), head(B, ib, CB, 'B')];
@@ -848,7 +854,7 @@ export class AnosmiaLogic extends DCLogic<Props, State> {
       tastingNo: 'Tasting No. ' + String(J.length + 1).padStart(2, '0'),
       answeredText: answered + ' of 6 answered',
       changeWine: () => this.setState({ screen: 'find' }),
-      recTile: this.tileFor(w, st.photo, 34, this.photoUrl(st.photoId)), sum: sum, rows: rows,
+      recTile: this.tileFor(w, st.photo, 34, this.photoState(st.photoId)), sum: sum, rows: rows,
 
       /* dock */
       showDock: scr === 'record' || sheet, dockSheet: sheet,
@@ -875,7 +881,7 @@ export class AnosmiaLogic extends DCLogic<Props, State> {
       closeEdit: () => { this.cancelAdvance(); this.setState({ editing: false, confirmK: null }); },
 
       /* summary */
-      summaryTag: st.sample ? 'Sample · illustrative' : 'Summary', sumTile: this.tileFor(w, st.photo, 104, this.photoUrl(st.photoId)),
+      summaryTag: st.sample ? 'Sample · illustrative' : 'Summary', sumTile: this.tileFor(w, st.photo, 104, this.photoState(st.photoId)),
       sumRows: sumRows, sumFp: this.fp(obs, '#5A1427', 1),
       notes: st.notes, onNotes: (e: Change) => this.setState({ notes: e.target.value }),
       enjoyOpts: enjoyOpts,

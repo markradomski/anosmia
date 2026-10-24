@@ -72,10 +72,14 @@ export function deletePhoto(db: Db, id: string): Promise<void> {
  * The app's view of stored photos: saves new ones and hands out object URLs for display, loading
  * them lazily. Without a database (storage unavailable) photos live in memory for the session only.
  */
+export type PhotoState = { url: string } | 'loading' | 'missing'
+
 export class PhotoLibrary {
   private db: Db | null
   private urls = new Map<string, string>()
   private loading = new Set<string>()
+  /** Ids whose photo could not be found or read (e.g. removed from storage). */
+  private missing = new Set<string>()
   private memory = new Map<string, Blob>()
   private listeners = new Set<() => void>()
 
@@ -91,22 +95,35 @@ export class PhotoLibrary {
     }
   }
 
-  url(id: string): string | null {
+  /**
+   * A stored photo for display: its object URL once loaded, 'loading' meanwhile (loading starts on
+   * first request), or 'missing' if it isn't in storage. Each photo gets one object URL, reused
+   * everywhere it appears and revoked when the photo is released.
+   */
+  photo(id: string): PhotoState {
     const cached = this.urls.get(id)
-    if (cached) return cached
+    if (cached) return { url: cached }
+    if (this.missing.has(id)) return 'missing'
     if (!this.loading.has(id)) {
       this.loading.add(id)
       void this.blob(id).then(blob => {
         this.loading.delete(id)
-        if (!blob) return
-        this.urls.set(id, URL.createObjectURL(blob))
+        if (blob) this.urls.set(id, URL.createObjectURL(blob))
+        else this.missing.add(id)
         this.listeners.forEach(fn => fn())
       }, err => {
         this.loading.delete(id)
+        this.missing.add(id)
         console.error('[anosmia] photo could not be loaded:', err)
+        this.listeners.forEach(fn => fn())
       })
     }
-    return null
+    return 'loading'
+  }
+
+  url(id: string): string | null {
+    const state = this.photo(id)
+    return typeof state === 'object' ? state.url : null
   }
 
   blob(id: string): Promise<Blob | null> {
@@ -129,6 +146,7 @@ export class PhotoLibrary {
     if (url) URL.revokeObjectURL(url)
     this.urls.delete(id)
     this.memory.delete(id)
+    this.missing.delete(id)
     if (this.db) await deletePhoto(this.db, id)
   }
 }
