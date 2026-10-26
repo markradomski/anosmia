@@ -2,6 +2,8 @@
 // Behaviour is kept as-is; the changes are type annotations and the DCLogic host shim.
 import type { ChangeEvent } from 'react'
 import { DCLogic } from '../dc/DCLogic'
+import { WINE_TYPES, typeChipStyle } from './formStyles'
+import { HISTORY_MESSAGE, HistoryError, sameHistory } from './history'
 
 export type SensKey = 'sweet' | 'acid' | 'tannin' | 'body' | 'warm' | 'finish'
 /** A level 1–4, 'none' (Not noticed), 'unsure' (Can’t tell) or null (Unanswered). */
@@ -54,6 +56,8 @@ export interface State {
   camera: boolean; camStage: 'aim' | 'found'
   /** What the camera is photographing (real camera only). */
   camTarget: PhotoTarget
+  /** The wine-details sheet is open on the saved tasting screen (app only; never saved in the draft). */
+  editingWine: boolean
   manual: boolean; mName: string; mType: string | null
   obs: Obs
   focus: SensKey; guide: boolean; editing: boolean
@@ -68,6 +72,13 @@ export interface State {
 }
 
 export type PhotoTarget = 'tasting' | 'a' | 'b' | 'glasses' | 'entry'
+
+/**
+ * What was in the glass can be corrected after saving: the wine's identity (here) and its photo
+ * (changeEntryPhoto). What the person experienced cannot: sensations, enjoyment, notes and the date
+ * are the original account (see history.ts). So this type has no keys for them.
+ */
+export interface IdentityEdit { wine: Wine | null; title: string | null }
 
 /** Local label photos (normal mode only; demo mode keeps the prototype's simulated camera). */
 export interface PhotoUrls { photo(id: string): { url: string } | 'loading' | 'missing' }
@@ -94,7 +105,7 @@ export class AnosmiaLogic extends DCLogic<Props, State> {
   state: State = {
     screen: null,
     wine: null, photo: false, photoId: null, title: null, query: '',
-    camera: false, camStage: 'aim', camTarget: 'tasting',
+    camera: false, camStage: 'aim', camTarget: 'tasting', editingWine: false,
     manual: false, mName: '', mType: null,
     obs: { sweet: null, acid: null, tannin: null, body: null, warm: null, finish: null },
     focus: 'sweet', guide: false, editing: false,
@@ -519,19 +530,33 @@ export class AnosmiaLogic extends DCLogic<Props, State> {
   /** The saved tasting the entry screen is showing (the screen falls back to the newest when none is chosen). */
   currentEntry(): Entry | null { const J = this.journalNow(); return J.find(e => e.id === this.state.entryId) || J[0] || null; }
   /**
-   * Add (a photo id), replace or remove (null) the photo of a saved tasting. Only its photo fields
-   * change. Resolves once the change is on the device; if it couldn't be stored the tasting goes back
-   * exactly as it was. Photos are never edited in place, so another tasting sharing the old photo is untouched.
+   * Change one saved tasting with `apply`, then wait until the change is on the device. If it
+   * couldn't be stored the tasting goes back exactly as it was (the same object), so nothing is lost
+   * and the caller can offer a retry. Other tastings are never touched.
    */
-  async changeEntryPhoto(entryId: string, photoId: string | null): Promise<{ ok: boolean; previous: string | null }> {
+  async updateEntry(entryId: string, apply: (entry: Entry) => Entry): Promise<{ ok: boolean; previous: Entry | null }> {
     const journal = this.journalNow();
     const prev = journal.find(e => e.id === entryId);
     if (!prev) return { ok: false, previous: null };
-    const next: Entry = { ...prev, photo: !!photoId, photoId };
+    const next = apply(prev);
+    // Hard stop: whatever the caller asked for, a saved tasting's original account is never rewritten.
+    if (!sameHistory(prev, next)) throw new HistoryError(HISTORY_MESSAGE);
     this.setState({ journal: journal.map(e => (e === prev ? next : e)) });
     const ok = this.savedStatus ? await this.savedStatus() : true;
     if (!ok) this.setState({ journal: this.journalNow().map(e => (e === next ? prev : e)) });
-    return { ok, previous: prev.photoId ?? null };
+    return { ok, previous: prev };
+  }
+  /**
+   * Add (a photo id), replace or remove (null) the photo of a saved tasting. Only its photo fields
+   * change. Photos are never edited in place, so another tasting sharing the old photo is untouched.
+   */
+  async changeEntryPhoto(entryId: string, photoId: string | null): Promise<{ ok: boolean; previous: string | null }> {
+    const { ok, previous } = await this.updateEntry(entryId, e => ({ ...e, photo: !!photoId, photoId }));
+    return { ok, previous: previous?.photoId ?? null };
+  }
+  /** Correct what the wine was. Everything the person recorded (sensations, enjoyment, notes, date) stays as saved. */
+  async editWineDetails(entryId: string, edit: IdentityEdit): Promise<boolean> {
+    return (await this.updateEntry(entryId, e => ({ ...e, wine: edit.wine, title: edit.title }))).ok;
   }
   photoForTarget(): string | null {
     const st = this.state; const t = st.camTarget;
@@ -869,8 +894,8 @@ export class AnosmiaLogic extends DCLogic<Props, State> {
       camProd: guessW.producer, camTitle: guessW.variety, camVin: guessW.vintage,
       openManual: () => this.setState({ manual: true }), closeManual: () => this.setState({ manual: false }),
       manual: st.manual, mName: st.mName, onMName: (e: Change) => this.setState({ mName: e.target.value }),
-      types: ['Red', 'White', 'Rosé', 'Sparkling', 'Orange', 'Sweet'].map(t => ({ t: t, pressed: st.mType === t ? 'true' : 'false',
-        style: 'height:48px;border-radius:14px;border:1.5px solid #1E1416;font-weight:650;font-size:14px;' + (st.mType === t ? 'background:#5A1427;color:#FBF6EA;border-color:#5A1427;' : 'background:transparent;'),
+      types: WINE_TYPES.map(t => ({ t: t, pressed: st.mType === t ? 'true' : 'false',
+        style: typeChipStyle(st.mType === t),
         pick: () => this.setState({ mType: st.mType === t ? null : t }) })),
       useManual: () => this.useManual(),
 
@@ -939,6 +964,9 @@ export class AnosmiaLogic extends DCLogic<Props, State> {
       abSetupBack: () => { this.cancelAdvance(); this.setState({ screen: (ab && ab.back && ab.back.indexOf('ab') !== 0 ? ab.back : 'journal') as Screen }); },
       abSlots: [slotTile('a'), slotTile('b')],
       abGlassPhoto: !!(ab && ab.glassPhoto), abGlassPhotoLabel: ab && ab.glassPhoto ? 'Retake photo of the glasses' : 'Photograph the glasses (optional)',
+      // Edit actions on the saved tasting screen, in the app only (demo mode renders the prototype as it was).
+      entEdit: !!this.props.photos && !!E.id,
+      entEditWine: () => this.setState({ editingWine: true }),
       entPhotoEdit: !!this.props.photos && !!E.id,
       entPhotoLabel: E.photoId ? 'Change photo' : 'Add photo',
       entPhotoOpen: () => this.setState({ camera: true, camTarget: 'entry' }),

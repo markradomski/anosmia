@@ -5,6 +5,7 @@
 // - other draft changes are written as soon as possible, coalesced while a write is in flight.
 import type { AnosmiaLogic, Entry, Session, State } from '../anosmia/AnosmiaLogic'
 import { draftToState, entryToRecord, recordToEntry, recordToSession, sessionToRecord, stateToDraft } from './codec'
+import { HISTORY_MESSAGE, sameHistory } from '../anosmia/history'
 import { Db, openDb } from './db'
 import { PhotoLibrary } from './photos'
 
@@ -151,6 +152,8 @@ export async function startPersistence(dbName?: string): Promise<Persistence> {
       let failedAt: string | null = null
       let draftQueued = false
       let detached = false
+      /** Tastings whose attempted rewrite was refused (reported once each). */
+      const refused = new Set<string>()
       /** The most recent write that contained saved records; resolves to whether it committed. */
       let recordWrite: Promise<boolean> | null = null
 
@@ -186,7 +189,7 @@ export async function startPersistence(dbName?: string): Promise<Persistence> {
       }
 
       const hasUnsaved = () =>
-        (logic.state.journal ?? []).some(e => writtenEntries.get(e.id) !== e)
+        (logic.state.journal ?? []).some(e => !refused.has(e.id) && writtenEntries.get(e.id) !== e)
         || (logic.state.sessions ?? []).some(s => writtenSessions.get(s.id) !== s)
 
       const onChange = () => {
@@ -196,7 +199,18 @@ export async function startPersistence(dbName?: string): Promise<Persistence> {
         const sessions: Session[] = []
         try {
           for (const e of st.journal ?? []) {
-            if (writtenEntries.get(e.id) === e) continue
+            const stored = writtenEntries.get(e.id)
+            if (stored === e) continue
+            // Storage-level guard: a tasting already on the device is never rewritten with a different
+            // original account (sensations, enjoyment, notes, date). That change is refused, not stored.
+            if (stored && !sameHistory(stored, e)) {
+              if (!refused.has(e.id)) {
+                refused.add(e.id)
+                console.error('[anosmia] refused to rewrite the original account of tasting', e.id)
+                if (!detached) logic.toast(HISTORY_MESSAGE)
+              }
+              continue
+            }
             const at = createdAt.get(e.id) ?? new Date().toISOString()
             records.push({ store: 'tastings', value: entryToRecord(e, at) })
             entries.push(e)

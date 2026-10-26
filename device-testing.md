@@ -14,7 +14,19 @@ Record the date, Android version, Chrome version and result for each step.
 | 2026-10-23 | Nothing Phone, model A059P, Android 16, Chrome 155 | Method A, installed app | Journal cards with a saved label photo | Frames blank. Photos were stored and valid (1200×1600 JPEG); the photo layer was an inline element that collapsed to zero size. Entry detail was unaffected. Fixed in commit c4f5526 |
 | 2026-10-26 | Nothing Phone, model A059P, Android 16 | Method A, installed app | Journal cards show the saved label photos | **Pass** (reported by owner, with screenshot of the journal showing photos on all visible cards, including an uploaded/typed-in bottle) |
 
-All other checks below have not been run on the device yet.
+| 2026-10-26 | Nothing Phone A059P, Android 16, Chrome (installed web app, WebAPK) | Method A, build `index-DbI8Zus0.js` confirmed on the phone | Recording: one-thumb dock, auto-advance (~420 ms), double-tap guard, Finish visible above dock, search and notes keyboards | **Pass** (scripted taps and DevTools reads) |
+| 2026-10-26 | same | same | Edit wine details: Edit pill, sheet, save, journal and detail update, persists across close/reopen, Cancel keeps original | **Pass**. Defect found: with the keyboard open the fields were squashed to ~21 px; fixed (`flexShrink: 0`), re-verified at 54 px fields and 48 px chips |
+| 2026-10-26 | same | same, real rear camera | Photographs: add, replace (camera), remove with confirmation, cancel at every step, journal cards and comparison selection, survive reopen and offline | **Pass** |
+| 2026-10-26 | same | same | Gallery picker (*Choose photo*) | NOT TESTED: the native picker would show personal photos |
+| 2026-10-26 | same | same | Historical integrity: sensations, rating, notes and date are read-only; edits leave them byte-identical; "Taste it again" makes a separate, later record | **Pass** |
+| 2026-10-26 | same | same | Comparison selection and guided blind A/B, blind hiding (leak scans) | **Pass** |
+| 2026-10-26 | same | same | Offline: launch, record and persist with the Mac server stopped | **Pass** |
+| 2026-10-26 | same | same | Installed, standalone display, manifest, icons, theme colour | **Pass** (`display-mode: standalone`, WebAPK installed). Safe-area insets are 0 on this phone, so they were not exercised |
+| 2026-10-26 | same | same | Layout of welcome, find, record, summary: no sideways scroll, nothing clipped; Type it in keyboard keeps field and button in view | **Pass** |
+| 2026-10-26 | same | same | Android Back from a saved tasting | Leaves the app to the launcher; reopening resumes on the same tasting. Works, but Back does not step back through screens |
+| 2026-10-26 | same | same | Insecure-HTTP camera message; camera permission prompt or denial; camera busy; landscape; phone restart; clear site data; fresh install; force-stop; two-person blind handoff; subjective one-thumb comfort | NOT TESTED in this pass |
+
+The owner's saved journal was not modified: test records were deleted by id afterwards and the journal (13 tastings, 12 photos, 0 sessions) matched a pre-test fingerprint; the owner's unfinished A/B draft was backed up and restored byte-for-byte.
 
 ## Setup
 
@@ -147,3 +159,13 @@ and `https://192.168.68.51:4173` is stored separately on the phone.
 7. Make two tastings share a photo (open a tasting, *Taste it again, blind*, save). Change the photo on one: the other keeps the original.
 8. Swipe the app away and reopen: every change is still there.
 9. Reach every button above with one thumb.
+
+### K. Correcting what a saved tasting's wine was
+1. Journal → open a tasting. A small **Edit** pill sits beside the wine name. There is no edit control for the notes, the rating, the sensations or the date: they are the original account and stay as recorded.
+2. Tap **Edit**. A sheet opens with Wine name, Producer, Variety, Vintage and the kind chips (Red, White, Rosé, Sparkling, Orange, Sweet), prefilled with what's saved. Reach every field and button with one thumb.
+3. Name an unidentified tasting and tap **Save changes**. The heading and the line beneath it update, a "Wine details saved." message appears, and the journal card and the comparison-selection screen show the new name straight away.
+4. Tap into each field with the keyboard open: the field you're typing in stays visible, and **Save changes** and **Cancel** stay on screen.
+5. **Cancel**, or tapping outside the sheet, leaves the tasting unchanged. Reopening starts from the saved details, not from what you typed.
+6. Clear every field and save: the tasting becomes "Unnamed wine", which is still a valid tasting.
+7. After correcting, tap **Reveal what I noticed**: every sensation, the notes, the rating and the date are exactly as before. Swipe the app away and reopen: the correction is still there.
+8. Make a repeat with **Taste it again, blind**, then correct the older tasting: the newer one is unchanged, and the other way round.

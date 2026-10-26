@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef } from 'react'
 import { LabelCamera } from '../camera/LabelCamera'
 import { useDCLogic } from '../dc/DCLogic'
+import { WineDetailsSheet, SAVE_FAILED } from '../edit/WineDetailsSheet'
 import { PhotoError } from '../data/photos'
 import { referencedPhotoIds, type Persistence } from '../data/persistence'
 import { AnosmiaLogic, type PhotoTarget, type Props } from './AnosmiaLogic'
@@ -86,6 +87,25 @@ export function Anosmia({ persistence, ...props }: Props & { persistence?: Persi
         onClose={() => logic.setState({ camera: false })}
       />
     )
+  }
+  // Correcting what the wine was on a saved tasting. The change counts as done only once it is on the
+  // device; if it can't be stored the tasting keeps its previous details and the sheet offers a retry.
+  if (!overlay && photos && st.editingWine && st.screen === 'entry') {
+    const entry = logic.currentEntry()
+    if (entry) {
+      overlay = (
+        <WineDetailsSheet
+          key={entry.id}
+          entry={entry}
+          onSave={async edit => {
+            if (!(await logic.editWineDetails(entry.id, edit))) throw new Error(SAVE_FAILED)
+            logic.setState({ editingWine: false })
+            logic.toast('Wine details saved.')
+          }}
+          onClose={() => logic.setState({ editingWine: false })}
+        />
+      )
+    }
   }
   return <AnosmiaView v={logic.renderVals()} overlay={overlay} />
 }

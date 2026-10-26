@@ -48,6 +48,12 @@ The starting point is a Claude Design HTML export containing a large React class
   - A new photo is previewed first and saved only on **Use photo**. Removing asks first ("Remove this photo?"). Cancelling at any point changes nothing.
   - Only `photo` / `photoId` on that tasting change (`changeEntryPhoto` in `AnosmiaLogic.ts`). Photos are never edited in place: a replacement is a new stored photo, so another tasting that shares the old one (e.g. from "Taste it again") keeps it. The old photo is deleted only once nothing refers to it.
   - The change counts as done only after the record is on the device (`savedStatus`). If either the photo or the record can't be stored, the tasting goes back exactly as it was, the new photo is removed again, and the sheet says so.
+- Correcting what a saved tasting's wine was (entry screen, app only; demo mode is unchanged): a small **Edit** beside the wine name opens `src/edit/WineDetailsSheet.tsx`.
+  - Fields: wine name, producer, variety, vintage and the Type it in kind chips. These are the fields a `Wine` already has; the chips write `variety: "<Kind> wine"` exactly as the typed-in form does, so nothing new is stored and no migration is needed. Rules are in `src/anosmia/identity.ts`.
+  - Everything is optional: clearing every field leaves an unidentified tasting, which stays valid. Saving without a change writes nothing.
+  - A catalogue wine whose details change becomes the user's own wine with a new id, so it keeps no catalogue or look-back links. A `Wine` object is never edited in place (tastings made with "Taste it again" share one).
+  - Immutability is enforced twice, not just by leaving buttons out: `updateEntry` in `AnosmiaLogic.ts` throws `HistoryError` if a change would touch anything but identity or photo, and `src/data/persistence.ts` refuses to rewrite a stored tasting's original account. Both use `sameHistory` in `src/anosmia/history.ts`.
+  - The change counts as done only once the record is on the device; if it can't be stored the tasting goes back exactly as it was and the sheet offers a retry.
 - Record overview (`src/anosmia/revealActiveRow.ts`): the active sensation row is scrolled into view above the thumb dock whenever it changes. Only the overview's own scroll container moves, and only as far as needed: instantly when the screen opens, smoothly otherwise, instantly with reduced motion. Rows and docks are marked with `data-active` / `data-dock`, which the parity check ignores.
 - PWA (Phase 3): `vite-plugin-pwa` in `vite.config.ts`.
   - The manifest uses icons rendered from the design-system mark by `scripts/make-icons.mjs`.
@@ -94,6 +100,10 @@ Do not add a backend, accounts, analytics, tracking, external APIs, AI wine reco
 - Different characteristics can have different verbal choices. **Finish is duration**, with discrete single-tap choices, not a hold-to-time requirement.
 - Preserve user-authored notes verbatim (including “Crushed ants.”). Do not rewrite them as traditional tasting notes.
 - Enjoyment/preference is separate from sensory observation.
+- **A saved tasting's original account is immutable.** Anosmia is a longitudinal journal of how someone's ability to perceive wine changes, so once a tasting is saved its six observations, enjoyment rating, personal notes and date are never edited, in the UI or in storage. Only what the wine was (its identity) and its photograph may be corrected afterwards.
+  - Repeating a wine ("Taste it again") makes a new, independently dated record with fresh observations; linking tastings of the same wine never alters an earlier one.
+  - Retrospective commentary, if ever wanted, is a separate deferred feature, not an edit of the original account.
+  - Do not add edit controls for notes, enjoyment, sensations or dates, retrospective scoring, or a progress dashboard without an explicit decision to change this rule.
 - Wine identification and photography are optional; support unnamed wine entries throughout.
 
 ## A/B comparison contracts

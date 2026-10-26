@@ -7,6 +7,25 @@ import type { Vals } from './AnosmiaLogic'
 
 type AriaBool = 'true' | 'false'
 
+/**
+ * In the app, a small Edit action beside the wine's name (correcting what the wine was). In demo mode
+ * the content renders exactly as the prototype did. Only identity is editable: sensations, enjoyment,
+ * notes and the date are the original account and have no edit control anywhere.
+ */
+function WithEdit({ on, onEdit, children }: { on: boolean; onEdit: () => void; children: ReactNode }) {
+  if (!on) return <>{children}</>
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
+      <div style={{ minWidth: 0, flex: 1 }}>{children}</div>
+      <button type="button" aria-label="Edit wine details" onClick={onEdit}
+        style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', height: '44px', padding: '0 14px', marginTop: '12px', flex: 'none', borderRadius: '22px', border: '1.5px solid #1E1416', background: 'transparent', fontWeight: 650, fontSize: '13.5px', color: '#1E1416' }}>
+        <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"><path d="M5 19l1-4L16 5l3 3L9 18z" /></svg>
+        Edit
+      </button>
+    </div>
+  )
+}
+
 export function AnosmiaView({ v, overlay }: { v: Vals; overlay?: ReactNode }) {
   return (
     <div className="f-ui grain" ref={css(v.frameStyle)}>
@@ -645,9 +664,11 @@ export function AnosmiaView({ v, overlay }: { v: Vals; overlay?: ReactNode }) {
               ) : null}
             </div>
             {" "}
-            <h1 className="f-disp" style={{ margin: "16px 0 3px", fontSize: "32px", lineHeight: "1", fontWeight: "800", letterSpacing: "-0.02em" }}>{v.ent.title}</h1>
-            {" "}
-            <div style={{ fontSize: "13.5px", color: "#5E4E49" }}>{v.ent.sub}</div>
+            <WithEdit on={v.entEdit} onEdit={v.entEditWine}>
+              <h1 className="f-disp" style={{ margin: "16px 0 3px", fontSize: "32px", lineHeight: "1", fontWeight: "800", letterSpacing: "-0.02em" }}>{v.ent.title}</h1>
+              {" "}
+              <div style={{ fontSize: "13.5px", color: "#5E4E49" }}>{v.ent.sub}</div>
+            </WithEdit>
             {" "}
             {v.ent.hasNotes ? (
               <>

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { restorableDraft } from '../data/persistence'
-import { AnosmiaLogic, type Screen } from './AnosmiaLogic'
+import { AnosmiaLogic, type Entry, type Screen } from './AnosmiaLogic'
+import { HistoryError, sameHistory } from './history'
 
 const SCREENS: Screen[] = ['welcome', 'find', 'record', 'summary', 'journal', 'entry', 'compare', 'abSetup', 'abRecord', 'abReview', 'abView']
 
@@ -166,5 +167,86 @@ describe('changing the photo of a saved tasting', () => {
     const demo = new AnosmiaLogic({ demo: true }).renderVals()
     expect(demo.entPhotoEdit).toBe(false)
     expect(demo.entFrameStyle).toBe('height: 300px; border-radius: 14px; overflow: hidden; border: 1.5px solid #1E1416; margin-top: 6px')
+  })
+})
+
+describe('correcting a saved tasting: only what the wine was, never what the person experienced', () => {
+  const setup = () => {
+    const l = new AnosmiaLogic({ photos: { photo: () => 'loading' } })
+    const [a, b] = l.seed()
+    // The two tastings share one Wine object, as happens with "Taste it again".
+    const shared = l.wineById('hollow23')!
+    const first: Entry = { ...a, id: 'first', wine: shared }
+    const second: Entry = { ...b, id: 'second', wine: shared }
+    l.state = { ...l.state, journal: [first, second], sessions: [], entryId: 'first', screen: 'entry' }
+    return { l, first, second, shared }
+  }
+
+  it('changes the wine and nothing else, and leaves every other tasting alone', async () => {
+    const { l, first, second, shared } = setup()
+    const wine = { ...shared, id: 'm9', name: 'Corrected', short: 'Corrected', custom: true }
+    expect(await l.editWineDetails('first', { wine, title: null })).toBe(true)
+    const [after, other] = l.state.journal!
+    expect(after).toEqual({ ...first, wine, title: null })
+    expect(after.obs).toBe(first.obs)
+    expect(sameHistory(first, after)).toBe(true)
+    expect(other).toBe(second)
+    expect(shared.name).toBe('Hollow Creek Riesling') // the shared object was not edited in place
+  })
+
+  it('can make a tasting unidentified, and name an unidentified one', async () => {
+    const { l } = setup()
+    await l.editWineDetails('first', { wine: null, title: 'Unnamed wine' })
+    expect(l.state.journal![0]).toMatchObject({ wine: null, title: 'Unnamed wine' })
+    const named = { ...l.wineById('moons')!, id: 'm5', custom: true }
+    await l.editWineDetails('first', { wine: named, title: null })
+    expect(l.state.journal![0]).toMatchObject({ wine: named, title: null })
+  })
+
+  it('waits for the change to be on the device, and puts the tasting back exactly if it is not', async () => {
+    const { l, first } = setup()
+    let settle: (ok: boolean) => void = () => {}
+    l.savedStatus = () => new Promise<boolean>(resolve => { settle = resolve })
+    const pending = l.editWineDetails('first', { wine: null, title: 'Unnamed wine' })
+    expect(l.state.journal![0].wine).toBeNull()
+    settle(false)
+    expect(await pending).toBe(false)
+    expect(l.state.journal![0]).toBe(first)
+  })
+
+  it('refuses any change to the original account, and leaves the journal untouched', async () => {
+    const { l, first, second } = setup()
+    const before = l.state.journal
+    const attempts: [string, (e: Entry) => Entry][] = [
+      ['notes', e => ({ ...e, notes: 'rewritten' })],
+      ['enjoyment', e => ({ ...e, enjoy: 1 })],
+      ['date', e => ({ ...e, date: '1 Jan 2020' })],
+      ['a sensory observation', e => ({ ...e, obs: { ...e.obs, sweet: 4 } })],
+      ['an observation turned unanswered', e => ({ ...e, obs: { ...e.obs, acid: null } })],
+      ['the id', e => ({ ...e, id: 'second' })],
+    ]
+    for (const [what, change] of attempts) {
+      await expect(l.updateEntry('first', change), what).rejects.toThrow(HistoryError)
+      expect(l.state.journal, what).toBe(before)
+    }
+    expect(l.state.journal).toEqual([first, second])
+  })
+
+  it('has no way to ask for a notes or enjoyment edit (checked by the compiler)', async () => {
+    const { l } = setup()
+    // @ts-expect-error notes are the original account and are not part of an identity edit
+    await l.editWineDetails('first', { wine: null, title: null, notes: 'rewritten' })
+    // @ts-expect-error enjoyment is the original account and is not part of an identity edit
+    await l.editWineDetails('first', { wine: null, title: null, enjoy: 1 })
+    expect(l.state.journal![0].notes).toBe(l.seed()[0].notes)
+    expect(l.state.journal![0].enjoy).toBe(l.seed()[0].enjoy)
+  })
+
+  it('offers the wine-details action in the app but not in demo mode, and no other edit action at all', () => {
+    const { l } = setup()
+    const v = l.renderVals() as Record<string, unknown>
+    expect(v.entEdit).toBe(true)
+    expect(Object.keys(v).filter(k => /^ent(Edit|Notes|Rating|Enjoy)/.test(k)).sort()).toEqual(['entEdit', 'entEditWine'])
+    expect((new AnosmiaLogic({ demo: true }).renderVals() as Record<string, unknown>).entEdit).toBe(false)
   })
 })
