@@ -147,7 +147,7 @@ export async function startPersistence(dbName?: string): Promise<Persistence> {
       let queue = Promise.resolve()
       let pending = 0
       let lastDraft = ''
-      /** Draft key when a record write last failed: retry only once the user's work has changed. */
+      /** The draft and records of the last failed write: it is retried only once either has changed. */
       let failedAt: string | null = null
       let draftQueued = false
       let detached = false
@@ -215,21 +215,28 @@ export async function startPersistence(dbName?: string): Promise<Persistence> {
         }
         if (records.length) {
           const { record: draft, key } = currentDraft()
+          const attempt = key + '|' + JSON.stringify(records)
           // After a failure, wait for the user's work to change before retrying (an error toast alone
           // must not trigger another attempt). Draft-only writes also wait, so the stored draft keeps
-          // holding the unsaved work.
-          if (failedAt === key) return
+          // holding the unsaved work. Nothing was stored, so a caller asking is told so.
+          if (failedAt === attempt) {
+            recordWrite = Promise.resolve(false)
+            return
+          }
+          const previousEntries = entries.map(e => [e.id, writtenEntries.get(e.id)] as const)
+          const previousSessions = sessions.map(s => [s.id, writtenSessions.get(s.id)] as const)
           entries.forEach(e => writtenEntries.set(e.id, e))
           sessions.forEach(s => writtenSessions.set(s.id, s))
           lastDraft = key
           records.push({ store: 'drafts', value: draft })
           // One transaction: if it fails, nothing in it was stored and records already on the device
-          // are untouched. Forget these records so a later change retries them.
+          // are untouched. Go back to what is on the device (a new record is forgotten, an edited one
+          // returns to its stored version), so a later change retries.
           recordWrite = enqueue(() => db.putAll(records).then(() => { failedAt = null }), () => {
-            entries.forEach(e => writtenEntries.delete(e.id))
-            sessions.forEach(s => writtenSessions.delete(s.id))
+            previousEntries.forEach(([id, e]) => (e ? writtenEntries.set(id, e) : writtenEntries.delete(id)))
+            previousSessions.forEach(([id, s]) => (s ? writtenSessions.set(id, s) : writtenSessions.delete(id)))
             lastDraft = ''
-            failedAt = key
+            failedAt = attempt
           })
           return
         }
@@ -255,6 +262,9 @@ export async function startPersistence(dbName?: string): Promise<Persistence> {
         })
       }
 
+      // Lets an action that changes a saved record wait until that change is on the device.
+      logic.savedStatus = () => recordWrite ?? Promise.resolve(true)
+
       // A write commits within milliseconds, but leaving the page during that window would abort it.
       const onBeforeUnload = (event: BeforeUnloadEvent) => {
         if (pending > 0) event.preventDefault()
@@ -269,6 +279,7 @@ export async function startPersistence(dbName?: string): Promise<Persistence> {
         unsubscribe()
         window.removeEventListener('beforeunload', onBeforeUnload)
         if (logic.saveAnnouncer) logic.saveAnnouncer = undefined
+        logic.savedStatus = undefined
       }
     },
   }

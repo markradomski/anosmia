@@ -8,6 +8,7 @@ import { CAMERA_PROBLEM_MESSAGES, cameraProblem, cameraUnavailable, type CameraP
 
 type Stage =
   | { kind: 'existing' }
+  | { kind: 'confirmRemove' }
   | { kind: 'live' }
   | { kind: 'review'; blob: Blob; url: string }
   | { kind: 'problem'; reason: CameraProblem }
@@ -19,10 +20,15 @@ export interface LabelCameraProps {
   existingUrl: string | null
   /** A photo exists (it may be hidden or still loading). */
   hasExisting: boolean
+  /** The existing photo has been looked up and isn't in storage. */
+  existingMissing?: boolean
+  /** Ask before removing (used when changing a saved tasting). */
+  confirmRemove?: boolean
   /** Blind comparison before the reveal: never show an existing photo. */
   hideExisting: boolean
   onUse: (blob: Blob) => Promise<void>
-  onRemove: () => void
+  /** Remove the photo. May be async; if it throws, the photo stays and the message is shown. */
+  onRemove: () => void | Promise<void>
   onClose: () => void
 }
 
@@ -40,6 +46,7 @@ const S = {
   sheetLabel: { fontSize: '10.5px', color: '#5A1427' },
   sheetTitle: { margin: 0, fontSize: '23px', lineHeight: 1.1, fontWeight: 800 },
   sheetText: { margin: 0, fontSize: '13px', color: '#5E4E49' },
+  destructive: { height: '58px', borderRadius: '18px', border: '1.5px solid #5A1427', background: '#5A1427', color: '#FBF6EA', fontWeight: 700, fontSize: '16px' },
   primary: { height: '58px', borderRadius: '18px', border: '1.5px solid #1E1416', background: '#F2CF5B', fontWeight: 700, fontSize: '16px' },
   secondary: { height: '52px', borderRadius: '18px', border: '1.5px solid #1E1416', background: 'transparent', fontWeight: 600, fontSize: '15px' },
   error: { margin: 0, fontSize: '13px', color: '#7E1F35', fontWeight: 600 },
@@ -54,7 +61,7 @@ const liveStage = (): Stage => {
   return reason ? { kind: 'problem', reason } : { kind: 'live' }
 }
 
-export function LabelCamera({ subject, existingUrl, hasExisting, hideExisting, onUse, onRemove, onClose }: LabelCameraProps) {
+export function LabelCamera({ subject, existingUrl, hasExisting, existingMissing, confirmRemove, hideExisting, onUse, onRemove, onClose }: LabelCameraProps) {
   const [stage, setStage] = useState<Stage>(() => (hasExisting ? { kind: 'existing' } : liveStage()))
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -123,6 +130,19 @@ export function LabelCamera({ subject, existingUrl, hasExisting, hideExisting, o
     }
   }
 
+  const removePhoto = async () => {
+    if (busy) return
+    setBusy(true)
+    setError('')
+    try {
+      await onRemove()
+    } catch (err) {
+      setError(err instanceof PhotoError ? err.message : 'The photo couldn’t be removed.')
+      setBusy(false)
+      setStage({ kind: 'existing' })
+    }
+  }
+
   const chooseButton = (
     <button type="button" onClick={() => file.current?.click()} style={{ ...S.textButton, justifySelf: 'end' }}>
       Choose photo
@@ -149,9 +169,10 @@ export function LabelCamera({ subject, existingUrl, hasExisting, hideExisting, o
           </>
         )}
         {stage.kind === 'review' && <img src={stage.url} alt="Label photo preview" style={{ ...S.fill, objectFit: 'contain' }} />}
-        {stage.kind === 'existing' && (hideExisting
+        {(stage.kind === 'existing' || stage.kind === 'confirmRemove') && (hideExisting
           ? <p style={S.message}>This photo stays hidden until the comparison is saved.</p>
-          : existingUrl ? <img src={existingUrl} alt={`Label photo for ${subject}`} style={{ ...S.fill, objectFit: 'contain' }} /> : null)}
+          : existingUrl ? <img src={existingUrl} alt={`Label photo for ${subject}`} style={{ ...S.fill, objectFit: 'contain' }} />
+            : existingMissing ? <p style={S.message}>This photo is no longer on this device. You can add a new one.</p> : null)}
         {stage.kind === 'problem' && <p role="alert" style={S.message}>{CAMERA_PROBLEM_MESSAGES[stage.reason]}</p>}
       </div>
 
@@ -183,7 +204,17 @@ export function LabelCamera({ subject, existingUrl, hasExisting, hideExisting, o
           {error && <p role="alert" style={S.error}>{error}</p>}
           <button type="button" className="press" onClick={onClose} style={S.primary}>Keep it</button>
           <button type="button" onClick={() => setStage(liveStage())} style={S.secondary}>Retake</button>
-          <button type="button" onClick={onRemove} style={S.secondary}>Remove photo</button>
+          <button type="button" onClick={() => (confirmRemove ? setStage({ kind: 'confirmRemove' }) : void removePhoto())} disabled={busy} style={S.secondary}>Remove photo</button>
+        </div>
+      )}
+
+      {stage.kind === 'confirmRemove' && (
+        <div className="rise" style={S.sheet}>
+          <span className="f-mono" style={S.sheetLabel}>Label photo · {subject}</span>
+          <h2 className="f-disp" style={S.sheetTitle}>Remove this photo?</h2>
+          <p style={S.sheetText}>Everything else stays: the wine, your sensations, notes and rating.</p>
+          <button type="button" className="press" onClick={() => void removePhoto()} disabled={busy} style={S.destructive}>{busy ? 'Removing…' : 'Remove it'}</button>
+          <button type="button" onClick={() => setStage({ kind: 'existing' })} disabled={busy} style={S.secondary}>Keep photo</button>
         </div>
       )}
       {error && stage.kind !== 'review' && stage.kind !== 'existing' && <p role="alert" style={{ ...S.error, color: '#F2CF5B', textAlign: 'center', margin: '0 0 8px' }}>{error}</p>}

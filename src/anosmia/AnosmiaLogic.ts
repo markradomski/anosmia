@@ -67,7 +67,7 @@ export interface State {
   toast: string
 }
 
-export type PhotoTarget = 'tasting' | 'a' | 'b' | 'glasses'
+export type PhotoTarget = 'tasting' | 'a' | 'b' | 'glasses' | 'entry'
 
 /** Local label photos (normal mode only; demo mode keeps the prototype's simulated camera). */
 export interface PhotoUrls { photo(id: string): { url: string } | 'loading' | 'missing' }
@@ -286,6 +286,11 @@ export class AnosmiaLogic extends DCLogic<Props, State> {
    * failed write is never reported as saved. Without it (demo mode) saves are confirmed at once.
    */
   saveAnnouncer?: (message: string) => void
+  /**
+   * Set by the persistence layer: resolves with whether the latest change to saved records is on the
+   * device. Without it (demo mode) changes are only in memory, so they count as done.
+   */
+  savedStatus?: () => Promise<boolean>
   announceSave(t: string) { if (this.saveAnnouncer) this.saveAnnouncer(t); else this.toast(t); }
   toast(t: string) { clearTimeout(this._tt); this.setState({ toast: t }); this._tt = setTimeout(() => this.setState({ toast: '' }), 2600); }
   start() { this.setState(Object.assign(this.blank(), { screen: 'find', selecting: false, sel: [] })); }
@@ -511,8 +516,26 @@ export class AnosmiaLogic extends DCLogic<Props, State> {
     this.toast('Names cleared. Whoever poured can name the glasses.');
   }
   /** The stored photo the camera's current target already has, if any. */
+  /** The saved tasting the entry screen is showing (the screen falls back to the newest when none is chosen). */
+  currentEntry(): Entry | null { const J = this.journalNow(); return J.find(e => e.id === this.state.entryId) || J[0] || null; }
+  /**
+   * Add (a photo id), replace or remove (null) the photo of a saved tasting. Only its photo fields
+   * change. Resolves once the change is on the device; if it couldn't be stored the tasting goes back
+   * exactly as it was. Photos are never edited in place, so another tasting sharing the old photo is untouched.
+   */
+  async changeEntryPhoto(entryId: string, photoId: string | null): Promise<{ ok: boolean; previous: string | null }> {
+    const journal = this.journalNow();
+    const prev = journal.find(e => e.id === entryId);
+    if (!prev) return { ok: false, previous: null };
+    const next: Entry = { ...prev, photo: !!photoId, photoId };
+    this.setState({ journal: journal.map(e => (e === prev ? next : e)) });
+    const ok = this.savedStatus ? await this.savedStatus() : true;
+    if (!ok) this.setState({ journal: this.journalNow().map(e => (e === next ? prev : e)) });
+    return { ok, previous: prev.photoId ?? null };
+  }
   photoForTarget(): string | null {
     const st = this.state; const t = st.camTarget;
+    if (t === 'entry') return this.currentEntry()?.photoId ?? null;
     if (t === 'tasting') return st.photoId;
     if (!st.ab) return null;
     return (t === 'glasses' ? st.ab.glassPhotoId : st.ab[t].photoId) ?? null;
@@ -520,6 +543,7 @@ export class AnosmiaLogic extends DCLogic<Props, State> {
   /** Attach (or with null, remove) the camera target's photo and close the camera. */
   applyPhoto(photoId: string | null) {
     const st = this.state; const t = st.camTarget;
+    if (t === 'entry') return; // saved tastings are changed with changeEntryPhoto
     if (t === 'tasting') { this.setState({ photo: !!photoId, photoId, camera: false }); return; }
     this.setState({ camera: false });
     if (!st.ab) return;
@@ -915,6 +939,11 @@ export class AnosmiaLogic extends DCLogic<Props, State> {
       abSetupBack: () => { this.cancelAdvance(); this.setState({ screen: (ab && ab.back && ab.back.indexOf('ab') !== 0 ? ab.back : 'journal') as Screen }); },
       abSlots: [slotTile('a'), slotTile('b')],
       abGlassPhoto: !!(ab && ab.glassPhoto), abGlassPhotoLabel: ab && ab.glassPhoto ? 'Retake photo of the glasses' : 'Photograph the glasses (optional)',
+      entPhotoEdit: !!this.props.photos && !!E.id,
+      entPhotoLabel: E.photoId ? 'Change photo' : 'Add photo',
+      entPhotoOpen: () => this.setState({ camera: true, camTarget: 'entry' }),
+      // Same declarations as the prototype's frame; the button laid over the photo needs it positioned.
+      entFrameStyle: 'height: 300px; border-radius: 14px; overflow: hidden; border: 1.5px solid #1E1416; margin-top: 6px' + (this.props.photos ? '; position: relative' : ''),
       toggleGlassPhoto: () => { if (this.props.photos) { this.setState({ camera: true, camTarget: 'glasses' }); return; } this.setAbPatch({ glassPhoto: true }); this.toast('Glasses photographed. A left, B right.'); },
       setOpen: () => this.setAbPatch({ blind: false }), setBlind: () => this.setBlind(),
       abOpenPressed: ab && !ab.blind ? 'true' : 'false', abBlindPressed: ab && ab.blind ? 'true' : 'false',

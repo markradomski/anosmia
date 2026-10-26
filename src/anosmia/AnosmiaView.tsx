@@ -611,7 +611,7 @@ export function AnosmiaView({ v, overlay }: { v: Vals; overlay?: ReactNode }) {
               <span className="f-mono" style={{ fontSize: "10.5px", color: "#5E4E49" }}>{v.ent.date}</span>
             </div>
             {" "}
-            <div style={{ height: "300px", borderRadius: "14px", overflow: "hidden", border: "1.5px solid #1E1416", marginTop: "6px" }}>
+            <div ref={css(v.entFrameStyle)}>
               {v.ent.tile.hasPhoto ? (
                 <>
                   <div ref={css(v.ent.tile.back)}>
@@ -631,6 +631,17 @@ export function AnosmiaView({ v, overlay }: { v: Vals; overlay?: ReactNode }) {
                     <span ref={css(v.ent.tile.blankSubStyle)}>{v.ent.tile.blankSub}</span>
                   </div>
                 </>
+              ) : null}
+              {v.entPhotoEdit ? (
+                <button onClick={v.entPhotoOpen} style={{ position: "absolute", inset: "0", border: "0", padding: "12px", background: "transparent", display: "flex", alignItems: "flex-end", justifyContent: "flex-end" }}>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: "8px", height: "44px", padding: "0 16px", borderRadius: "22px", border: "1.5px solid #1E1416", background: "#FBF6EA", fontWeight: "650", fontSize: "14px", color: "#1E1416" }}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round">
+                      <path d="M4 8h3l2-3h6l2 3h3v11H4z" />
+                      <circle cx="12" cy="13" r="3.5" />
+                    </svg>
+                    {v.entPhotoLabel}
+                  </span>
+                </button>
               ) : null}
             </div>
             {" "}

@@ -43,6 +43,11 @@ The starting point is a Claude Design HTML export containing a large React class
 - Camera failure reasons (`src/camera/cameraProblem.ts`): insecure context, permission denied, no camera, camera failed to start, and unsupported browser. Each has its own message, and choosing a photo is always offered.
   - On the Nothing Phone over plain `http://<LAN IP>` the page is not a secure context, so Chrome removes `navigator.mediaDevices`. Confirmed in Chromium.
   - Secure testing methods are in `device-testing.md`: Wireless debugging + `adb reverse` to `localhost`, or opt-in HTTPS via `ANOSMIA_HTTPS_CERT`/`ANOSMIA_HTTPS_KEY` with a local mkcert certificate kept in `private/`. Never use Chrome flags that treat insecure origins as secure, and never expose the app publicly without approval.
+- Editing a saved tasting's photo (entry screen, normal mode only; demo mode is unchanged so it still matches the original export):
+  - The photo area is one button over the whole picture, with a clear **Add photo** / **Change photo** label. It opens the same camera and choose-a-photo sheet. Nothing is added to journal cards.
+  - A new photo is previewed first and saved only on **Use photo**. Removing asks first ("Remove this photo?"). Cancelling at any point changes nothing.
+  - Only `photo` / `photoId` on that tasting change (`changeEntryPhoto` in `AnosmiaLogic.ts`). Photos are never edited in place: a replacement is a new stored photo, so another tasting that shares the old one (e.g. from "Taste it again") keeps it. The old photo is deleted only once nothing refers to it.
+  - The change counts as done only after the record is on the device (`savedStatus`). If either the photo or the record can't be stored, the tasting goes back exactly as it was, the new photo is removed again, and the sheet says so.
 - Record overview (`src/anosmia/revealActiveRow.ts`): the active sensation row is scrolled into view above the thumb dock whenever it changes. Only the overview's own scroll container moves, and only as far as needed: instantly when the screen opens, smoothly otherwise, instantly with reduced motion. Rows and docks are marked with `data-active` / `data-dock`, which the parity check ignores.
 - PWA (Phase 3): `vite-plugin-pwa` in `vite.config.ts`.
   - The manifest uses icons rendered from the design-system mark by `scripts/make-icons.mjs`.

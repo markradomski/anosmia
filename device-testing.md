@@ -136,3 +136,14 @@ and `https://192.168.68.51:4173` is stored separately on the phone.
 
 ### I. Storage is local only
 1. Chrome → Site settings → `localhost:4173` → *Clear & reset* deletes the journal. This is expected: there is no backup or sync.
+
+### J. Changing a saved tasting's photo
+1. Journal → open a tasting that has a photo. The photo shows a **Change photo** button at its lower right; one without a photo shows **Add photo**.
+2. Tap the picture itself (away from the button): the same photo sheet opens.
+3. *Change photo* → *Retake* → take a new photo with the rear camera → *Use photo*. The entry, its journal card and the comparison-selection screen all show the new photo straight away. Wine, sensations, notes and rating are unchanged.
+4. Same again, but *Choose photo* and pick one from the gallery.
+5. Before *Use photo*, back out with *Retake* → *Cancel*: the original photo is still there.
+6. *Change photo* → *Remove photo* → *Keep photo* leaves it; *Remove photo* → *Remove it* clears it. The card falls back to the "No photo" placeholder, and the button now says **Add photo**.
+7. Make two tastings share a photo (open a tasting, *Taste it again, blind*, save). Change the photo on one: the other keeps the original.
+8. Swipe the app away and reopen: every change is still there.
+9. Reach every button above with one thumb.
