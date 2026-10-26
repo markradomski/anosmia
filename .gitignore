@@ -40,3 +40,7 @@ private/
 # Test output
 test-results/
 playwright-report/
+
+docs/new features email.pdf
+
+docs/wine-preferences.json
