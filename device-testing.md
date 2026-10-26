@@ -11,6 +11,8 @@ Record the date, Android version, Chrome version and result for each step.
 | 2026-10-23 | Nothing Phone, model A059P, Android 16 | Wi-Fi, plain `http://192.168.68.51:4173` | B: record screen | Finish row hidden behind the thumb dock. Fixed in commit 689e689 |
 | 2026-10-23 | Nothing Phone, model A059P, Android 16 | Method A: Wireless debugging + `adb reverse`, `http://localhost:4173` | D1: rear camera opens | **Pass** (reported by owner) |
 | 2026-10-23 | Nothing Phone, model A059P, Android 16 | Method A, `http://localhost:4173` | B6: Finish row stays visible above the dock | **Pass** (reported by owner) |
+| 2026-10-23 | Nothing Phone, model A059P, Android 16, Chrome 155 | Method A, installed app | Journal cards with a saved label photo | Frames blank. Photos were stored and valid (1200×1600 JPEG); the photo layer was an inline element that collapsed to zero size. Entry detail was unaffected. Fixed in commit c4f5526 |
+| 2026-10-26 | Nothing Phone, model A059P, Android 16 | Method A, installed app | Journal cards show the saved label photos | **Pass** (reported by owner, with screenshot of the journal showing photos on all visible cards, including an uploaded/typed-in bottle) |
 
 All other checks below have not been run on the device yet.
 

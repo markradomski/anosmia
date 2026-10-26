@@ -22,7 +22,7 @@ The starting point is a Claude Design HTML export containing a large React class
 ### Repository as of Phase 3 (re-check with `git log` and `git status`)
 
 - Local git repository on `main`, **no remote**. Nothing has been pushed or deployed.
-- Phases 1–3 are complete and were verified in desktop Chromium only. The Nothing Phone checklist is in `device-testing.md`. Only the rear camera and Finish-row visibility have passed on the device so far (2026-10-23); see its Results table.
+- Phases 1–3 are complete and were verified in desktop Chromium only. The Nothing Phone checklist is in `device-testing.md`. Only the rear camera, Finish-row visibility and journal-card label photos have passed on the device so far; see its Results table.
   - Phase 1 (port): the port matched the original export's rendered DOM, inline styles and element positions at 69 scripted checkpoints.
   - Phase 2: persistence.
   - Phase 3: full-screen mobile layout, real label photography, PWA install and offline use, blind-mode fixes, sample isolation and save reliability.
@@ -58,7 +58,7 @@ The starting point is a Claude Design HTML export containing a large React class
 
 ## Approved implementation direction
 
-- **Platform:** Responsive web app and installable PWA; mobile-first. The target device is an Android browser on a Nothing Phone. **Most Nothing Phone testing is outstanding** (rear camera and Finish-row visibility passed on 2026-10-23). Desktop Chromium verification is not physical-device verification.
+- **Platform:** Responsive web app and installable PWA; mobile-first. The target device is an Android browser on a Nothing Phone. **Most Nothing Phone testing is outstanding** (rear camera, Finish-row visibility and journal-card photos have passed; see `device-testing.md`). Desktop Chromium verification is not physical-device verification.
 - **Layout:** Prioritise the functional mobile app and let it adapt sensibly to larger viewports. Do not rebuild the static desktop board from the export.
 - **Core:** React, TypeScript, Vite.
 - **Styles:** Reuse the prototype's existing CSS/typography and extracted tokens; do not introduce Tailwind, a UI kit or a replacement styling strategy without approval.
