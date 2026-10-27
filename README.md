@@ -6,6 +6,14 @@
 
 No account or installation is required to use it in a desktop or mobile browser.
 
+## Screenshots
+
+<p align="center">
+  <img src="docs/screenshots/welcome.png" alt="Anosmia welcome screen" width="32%" />
+  <img src="docs/screenshots/recording.png" alt="Recording six wine sensations with contextual guidance" width="32%" />
+  <img src="docs/screenshots/summary.png" alt="Tasting summary with sensory observations and journal save" width="32%" />
+</p>
+
 ## Use on a desktop computer
 
 1. Open **https://anosmia.vercel.app/** in your browser.
