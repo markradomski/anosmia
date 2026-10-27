@@ -6,6 +6,12 @@ import { WINE_TYPES, typeChipStyle } from './formStyles'
 import { GUIDE_INTRO, readGuidePrefs, writeGuidePrefs } from './guidePrefs'
 import { HISTORY_MESSAGE, HistoryError, sameHistory } from './history'
 
+/** The built-in sample: Penfolds Grange 1986, photographed (public/images, precached for offline use). */
+export const SAMPLE_WINE_ID = 'grange16';
+export const SAMPLE_NOTE = 'Tastes like crushed ants...';
+export const SAMPLE_PHOTO_URL = import.meta.env.BASE_URL + 'images/penfolds-grange-1986.jpg';
+const SAMPLE_PHOTO_STYLE = 'display:block;position:relative;width:100%;height:100%;overflow:hidden;background:#24161A url("' + SAMPLE_PHOTO_URL + '") center / cover no-repeat;';
+
 export type SensKey = 'sweet' | 'acid' | 'tannin' | 'body' | 'warm' | 'finish'
 /** A level 1–4, 'none' (Not noticed), 'unsure' (Can’t tell) or null (Unanswered). */
 export type ObsValue = number | 'none' | 'unsure' | null
@@ -165,7 +171,7 @@ export class AnosmiaLogic extends DCLogic<Props, State> {
       { id: 'hollow23', name: 'Hollow Creek Riesling', short: 'Hollow Creek', producer: 'Hollow Creek', variety: 'Riesling', vintage: '2023', region: 'Clare Valley, SA' },
       { id: 'mallee21', name: 'Mallee & Sons Shiraz', short: 'Mallee & Sons', producer: 'Mallee & Sons', variety: 'Shiraz', vintage: '2021', region: 'Barossa Valley, SA' },
       { id: 'little22', name: 'Little Ferment Pinot Noir', short: 'Little Ferment', producer: 'Little Ferment Co.', variety: 'Pinot noir', vintage: '2022', region: 'Adelaide Hills, SA' },
-      { id: 'grange16', name: 'Penfolds Grange', short: 'Grange', producer: 'Penfolds', variety: 'Shiraz', vintage: '2016', region: 'South Australia' },
+      { id: 'grange16', name: 'Penfolds Grange', short: 'Grange', producer: 'Penfolds', variety: 'Shiraz', vintage: '1986', region: 'South Australia' },
       { id: 'salt23', name: 'Saltbush Grenache', short: 'Saltbush', producer: 'Saltbush', variety: 'Grenache', vintage: '2023', region: 'McLaren Vale, SA' },
       { id: 'moons', name: 'Two Moons Muscat', short: 'Two Moons', producer: 'Two Moons', variety: 'Muscat', vintage: 'NV', region: 'Rutherglen, VIC' },
       { id: 'kettle22', name: 'Kettle Rock Chardonnay', short: 'Kettle Rock', producer: 'Kettle Rock', variety: 'Chardonnay', vintage: '2022', region: 'Yarra Valley, VIC' },
@@ -191,7 +197,7 @@ export class AnosmiaLogic extends DCLogic<Props, State> {
     const w = (id: string) => this.wineById(id);
     return [
       { id: 'e6', wine: w('little22'), photo: true, date: '14 Oct 2026', obs: { sweet: 'none', acid: 3, tannin: 1, body: 2, warm: 'unsure', finish: 2 }, notes: 'Polite. Slightly nervous.', enjoy: 4 },
-      { id: 'e5', wine: w('grange16'), photo: false, date: '12 Oct 2026', obs: { sweet: 'none', acid: 1, tannin: 1, body: 2, warm: 1, finish: 1 }, notes: 'Crushed ants.', enjoy: 3 },
+      { id: 'e5', wine: w('grange16'), photo: true, date: '12 Oct 2026', obs: { sweet: 'none', acid: 1, tannin: 1, body: 2, warm: 1, finish: 1 }, notes: SAMPLE_NOTE, enjoy: 3 },
       { id: 'e4', wine: w('hollow23'), photo: true, date: '3 Oct 2026', obs: { sweet: 1, acid: 4, tannin: 'none', body: 1, warm: 1, finish: 2 }, notes: 'Like licking a battery, politely.', enjoy: 4 },
       { id: 'e3', wine: null, title: 'Mystery red', photo: false, date: '27 Sep 2026', obs: { sweet: 'none', acid: 2, tannin: 2, body: 2, warm: 'unsure', finish: null }, notes: 'Mate’s bottle. No label, no regrets.', enjoy: 3 },
       { id: 'e2', wine: w('mallee21'), photo: true, date: '19 Sep 2026', obs: { sweet: 'unsure', acid: 2, tannin: 3, body: 4, warm: 3, finish: 3 }, notes: 'Wore a jumper on my tongue.', enjoy: 3 },
@@ -222,6 +228,9 @@ export class AnosmiaLogic extends DCLogic<Props, State> {
     // A stored photo that can't be found shows the prototype's "No photo" placeholder, never an empty frame.
     if (hasPhoto && photo === 'missing') return this.drawnTile(w, false, size);
     const tile = this.drawnTile(w, hasPhoto, size);
+    // The sample Penfolds Grange is a photograph of the bottle. Only the demo and the built-in sample tasting
+    // use it; a real saved tasting never does, whatever wine it names.
+    if (hasPhoto && !photo && w && w.id === SAMPLE_WINE_ID && (this.props.demo || this.state.sample)) return { ...tile, back: SAMPLE_PHOTO_STYLE, card: 'display:none;' };
     if (!hasPhoto || !photo) return tile;
     // A real label photo replaces the drawn label. display:block matters: in some screens this layer is
     // an inline <span>, which would ignore width/height and collapse to nothing. While the photo loads
@@ -310,8 +319,8 @@ export class AnosmiaLogic extends DCLogic<Props, State> {
   toast(t: string) { clearTimeout(this._tt); this.setState({ toast: t }); this._tt = setTimeout(() => this.setState({ toast: '' }), 2600); }
   start() { this.setState(Object.assign(this.blank(), { screen: 'find', selecting: false, sel: [] })); }
   loadSample() {
-    this.setState(Object.assign(this.blank(), { screen: 'summary', sample: true, wine: this.wineById('grange16'),
-      obs: { sweet: 'none', acid: 1, tannin: 1, body: 2, warm: 1, finish: 1 }, notes: 'Crushed ants.' }));
+    this.setState(Object.assign(this.blank(), { screen: 'summary', sample: true, wine: this.wineById('grange16'), photo: true,
+      obs: { sweet: 'none', acid: 1, tannin: 1, body: 2, warm: 1, finish: 1 }, notes: SAMPLE_NOTE }));
   }
   /* The user decides when to answer; the app moves to the next question.
      - Advances only when a sensation goes from unanswered to answered (never on revisions, clears or idle time).

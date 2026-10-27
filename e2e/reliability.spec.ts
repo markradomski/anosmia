@@ -69,7 +69,7 @@ test('the sample tasting never enters the real journal', async ({ page }) => {
   await tap(page, /Save to journal/)
   await expect(page.getByText('That was the sample tasting, so it isn’t saved to your journal.')).toBeVisible()
   await expect(page.getByRole('tab', { name: 'Tastings · 0' })).toBeVisible()
-  await expect(page.getByText('Crushed ants.')).toHaveCount(0)
+  await expect(page.getByText('Tastes like crushed ants...')).toHaveCount(0)
   await page.waitForTimeout(300)
   expect(await readStore(page, 'tastings')).toHaveLength(0)
   // "What you've reported" counts nothing from the sample.

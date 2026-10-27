@@ -37,7 +37,7 @@ export default defineConfig({
       },
       workbox: {
         // Only the app's own built files. Journal data lives in IndexedDB, not in this cache.
-        globPatterns: ['**/*.{js,css,html,woff2,svg,png,webmanifest}'],
+        globPatterns: ['**/*.{js,css,html,woff2,svg,png,jpg,webmanifest}'],
         navigateFallback: '/index.html',
         cleanupOutdatedCaches: true,
       },

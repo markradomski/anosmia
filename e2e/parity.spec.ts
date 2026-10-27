@@ -2,7 +2,9 @@
 // Each checkpoint compares the serialised frame (DOM, inline styles, element boxes) of both.
 import { expect, test, type Page } from '@playwright/test'
 import { APP, REFERENCE } from '../playwright.config.ts'
+import { readFileSync } from 'node:fs'
 import { installHarness } from './helpers.ts'
+import { withUpdatedSample } from './referenceSample.ts'
 
 type Checkpoints = string[][][]
 
@@ -25,13 +27,15 @@ const AB: Checkpoints = [
   [['click', 'Show my earlier notes']], [['click', 'Show']], [['click', 'Journal']],
 ]
 
+// The sample Grange now has its photograph, which "Taste it again" carries over, so the find screen offers
+// "Retake photo" where the original export offered "Snap the label".
 const JOURNAL: Checkpoints = [
   [['click', 'Journal']], [['click', 'Compare']], [['click', 'Two saved tastings']],
   [['click', 'Little Ferment Pinot Noir, tasted 14 Oct 2026']], [['click', 'Hollow Creek Riesling, tasted 3 Oct 2026']],
   [['click', 'CompareA vs B']], [['click', 'Swap sides']], [['click', 'Journal']],
   [['click', 'Penfolds Grange, tasted 12 Oct 2026']], [['click', 'Reveal what I noticed']], [['click', 'Taste it again, blind']],
   [['click', 'How to notice sweetness']], [['click', 'Got it. Back to the glass']], [['click', 'Next sensation']], [['click', 'Previous sensation']],
-  [['click', 'Sweetness: Sweet']], [['click', 'Back to wine']], [['click', 'Snap the label']], [['click', 'Take photo']], [['click', 'Not quite']],
+  [['click', 'Sweetness: Sweet']], [['click', 'Back to wine']], [['click', 'Retake photo']], [['click', 'Take photo']], [['click', 'Not quite']],
   [['click', 'Type it in']], [['type', '#mname', 'Cellar door red'], ['click', 'Red']], [['click', 'Use this']],
   [['click', 'Start tasting']], [['click', 'Review tasting']], [['click', 'Save to journal']], [['click', 'Journal']],
   [['click', 'Anosmia home']], [['click', 'Sample tasting']],
@@ -53,6 +57,9 @@ for (const [name, checkpoints] of [['single-wine tasting', SINGLE], ['A/B compar
     test.setTimeout(120_000)
     const reference = await browser.newPage()
     const port = await browser.newPage()
+    // The export, with only the intended sample-Grange changes applied (see referenceSample.ts).
+    const exportHtml = withUpdatedSample(readFileSync('references/ANOSMIA — Wine beyond aroma.html', 'utf8'))
+    await reference.route('**/ANOSMIA*', route => route.fulfill({ contentType: 'text/html; charset=utf-8', body: exportHtml }))
     const expected = await run(reference, `${REFERENCE}/${encodeURIComponent('ANOSMIA — Wine beyond aroma.html')}`, checkpoints)
     const actual = await run(port, `${APP}/?demo`, checkpoints)
     expect(actual.length).toBe(checkpoints.length)
