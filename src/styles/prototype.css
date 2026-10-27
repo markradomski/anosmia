@@ -27,4 +27,31 @@ input::placeholder,textarea::placeholder{color:#7A6A64}
 .fade{animation:fade .22s ease}
 @keyframes drop{from{transform:translate(-50%,-12px);opacity:0}to{transform:translate(-50%,0);opacity:1}}
 .drop{animation:drop .25s ease}
-@media (prefers-reduced-motion: reduce){.pop,.rise,.fade,.drop,.confirm,.ready{animation:none}.press:active{transform:none}}
+/* Guidance transition: only composited opacity + transform.
+   Do not animate clip-path: it forces repainting of the scrolling panel on phones.
+   Keep the panel and overview mounted so rapid toggles reverse naturally. */
+.guide-overview{
+  opacity:1;
+  transition:opacity 540ms cubic-bezier(.4,0,.2,1);
+}
+.guide-overview[data-guide-open="true"]{opacity:0;pointer-events:none}
+.guide-panel{
+  opacity:0;
+  transform:translate3d(0,12px,0);
+  visibility:hidden;
+  pointer-events:none;
+  transition:
+    opacity 540ms cubic-bezier(.4,0,.2,1),
+    transform 540ms cubic-bezier(.4,0,.2,1),
+    visibility 0s linear 540ms;
+  backface-visibility:hidden;
+}
+.guide-panel[data-open="true"]{
+  opacity:1;
+  transform:translate3d(0,0,0);
+  visibility:visible;
+  pointer-events:auto;
+  transition-delay:0s;
+}
+.guide-bar{transition:background-color 540ms ease-in-out,color 540ms ease-in-out}
+@media (prefers-reduced-motion: reduce){.guide-panel,.guide-bar,.guide-overview{transition:none}.guide-panel{transform:none}.pop,.rise,.fade,.drop,.confirm,.ready{animation:none}.press:active{transform:none}}

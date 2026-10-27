@@ -26,6 +26,15 @@ Record the date, Android version, Chrome version and result for each step.
 | 2026-10-26 | same | same | Android Back from a saved tasting | Leaves the app to the launcher; reopening resumes on the same tasting. Works, but Back does not step back through screens |
 | 2026-10-26 | same | same | Insecure-HTTP camera message; camera permission prompt or denial; camera busy; landscape; phone restart; clear site data; fresh install; force-stop; two-person blind handoff; subjective one-thumb comfort | NOT TESTED in this pass |
 
+| 2026-10-27 | Nothing Phone A059P, installed app, build `index-BoutKUX-.js` (411×839 CSS px) | Method A, scripted taps and DevTools reads | L2 guidance bar: 44 px, full width, directly above the dock, labelled for all six sensations, no clipping, no "How?" button | **Pass** |
+| 2026-10-27 | same | same | L3 open and close: panel fills the overview's space, dock unchanged, overview inert, nothing answered; closing keeps the active row above the bar (Finish, Sweetness, Alcohol warmth, Finish) | **Pass** |
+| 2026-10-27 | same | same | Essential footnote visible without scrolling for all six sensations; bottom navigation on screen | **Pass** |
+| 2026-10-27 | same | same | L4 answer with the guide open: acknowledged, advanced to Acidity after 426 ms, guide still open, titled for Acidity, guide at its top | **Pass** |
+| 2026-10-27 | same | same | Swipe on the guide: nothing answered, page does not move | **Pass**. Independent scrolling NOT TESTED: the guide fits without scrolling at this size |
+| 2026-10-27 | same | same | L1 first-tasting introduction | NOT TESTED: needs an empty journal (the phone holds the owner's journal) |
+| 2026-10-27 | same | same | L4 manual navigation or open/close inside the 420 ms window cancels the advance | NOT TESTED on the device: scripted taps could not be timed reliably (about 300 ms click latency). Covered in desktop browser tests |
+| 2026-10-27 | same | same | L6 next-tasting preference, L7 reopen mid-tasting, L8 Android Back with guide open | NOT TESTED: the phone stopped accepting injected touches mid-run |
+
 The owner's saved journal was not modified: test records were deleted by id afterwards and the journal (13 tastings, 12 photos, 0 sessions) matched a pre-test fingerprint; the owner's unfinished A/B draft was backed up and restored byte-for-byte.
 
 ## Setup
@@ -169,3 +178,16 @@ and `https://192.168.68.51:4173` is stored separately on the phone.
 6. Clear every field and save: the tasting becomes "Unnamed wine", which is still a valid tasting.
 7. After correcting, tap **Reveal what I noticed**: every sensation, the notes, the rating and the date are exactly as before. Swipe the app away and reopen: the correction is still there.
 8. Make a repeat with **Taste it again, blind**, then correct the older tasting: the newer one is unchanged, and the other way round.
+
+## L. Recording-screen guidance bar (Option D)
+
+Not yet run on the phone. L1 needs a first-run profile (clear the app's site data first, which also clears the journal, so only do this on a test install or after exporting what you need).
+
+1. **First tasting:** with an empty journal, start a tasting: the Sweetness guidance opens by itself with the one-line introduction. Answer Sweetness: the panel stays open for Acidity, with no introduction. Go back to Sweetness: no introduction.
+2. **Bar:** it is full width, 44 px, directly above the answer controls, and never covers the answers, Previous/Next/Review, or Android's navigation area. Text does not clip on any of the six sensations.
+3. **Open and close:** tap the bar to hide and show. The overview returns, the active row fully visible above the bar (check Finish, then jump with row taps). Nothing is answered or advanced by opening, closing or scrolling.
+4. **Answer with it open:** tap a new answer: it is acknowledged, then moves on after about half a second, panel still open and showing the next sensation from its top. Tapping Next/Previous inside that half second stops the advance.
+5. **Scroll:** on a long guide, drag it with a thumb: only the guide moves, not the page.
+6. **Next tasting:** save, start another: guidance starts as you left it, with no introduction.
+7. **Reopen:** close and reopen the app mid-tasting: guidance follows your last choice; no introduction.
+8. **Back:** Android Back leaves the app as everywhere else (it does not close the guide); note what you see.

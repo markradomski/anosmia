@@ -3,6 +3,7 @@
 import type { ChangeEvent } from 'react'
 import { DCLogic } from '../dc/DCLogic'
 import { WINE_TYPES, typeChipStyle } from './formStyles'
+import { GUIDE_INTRO, readGuidePrefs, writeGuidePrefs } from './guidePrefs'
 import { HISTORY_MESSAGE, HistoryError, sameHistory } from './history'
 
 export type SensKey = 'sweet' | 'acid' | 'tannin' | 'body' | 'warm' | 'finish'
@@ -61,6 +62,9 @@ export interface State {
   manual: boolean; mName: string; mType: string | null
   obs: Obs
   focus: SensKey; guide: boolean; editing: boolean
+  /** Record-screen guidance panel (app only; never saved in the draft). `guideReady` is false until the
+   *  panel's state has been chosen for this tasting; `guideIntro` shows the one-time first-tasting hint. */
+  guideOpen: boolean; guideReady: boolean; guideIntro: boolean
   notes: string; enjoy: number | null
   returnTo: Screen | null; repeatOf: string | null; sample: boolean; confirmK: SensKey | null; liveMsg: string
   journal: Entry[] | null; entryId: string | null; reveal: boolean
@@ -108,7 +112,7 @@ export class AnosmiaLogic extends DCLogic<Props, State> {
     camera: false, camStage: 'aim', camTarget: 'tasting', editingWine: false,
     manual: false, mName: '', mType: null,
     obs: { sweet: null, acid: null, tannin: null, body: null, warm: null, finish: null },
-    focus: 'sweet', guide: false, editing: false,
+    focus: 'sweet', guide: false, editing: false, guideOpen: false, guideReady: false, guideIntro: false,
     notes: '', enjoy: null,
     returnTo: null, repeatOf: null, sample: false, confirmK: null, liveMsg: '',
     journal: null, entryId: null, reveal: false,
@@ -199,7 +203,7 @@ export class AnosmiaLogic extends DCLogic<Props, State> {
   journalNow() { return this.state.journal || this.seed(); }
   emptyObs(): Obs { return { sweet: null, acid: null, tannin: null, body: null, warm: null, finish: null }; }
   blank(): Partial<State> {
-    return { wine: null, photo: false, photoId: null, title: null, query: '', obs: this.emptyObs(), focus: 'sweet', guide: false, editing: false,
+    return { wine: null, photo: false, photoId: null, title: null, query: '', obs: this.emptyObs(), focus: 'sweet', guide: false, editing: false, guideOpen: false, guideReady: false, guideIntro: false,
       notes: '', enjoy: null, confirmK: null, liveMsg: '', returnTo: null, repeatOf: null, sample: false,
       camera: false, camStage: 'aim', manual: false, mName: '', mType: null };
   }
@@ -352,6 +356,21 @@ export class AnosmiaLogic extends DCLogic<Props, State> {
       }
     }
     this.setState({ confirmK: null, liveMsg: 'All six answered. Review tasting when you are ready.' });
+  }
+  /** The record-screen guidance always starts closed, so the answers and the overview are never hidden on arrival.
+   *  Called as the record screen opens. */
+  resolveGuide() {
+    if (!this.props.photos || this.state.guideReady) return;
+    this.setState({ guideReady: true, guideOpen: false, guideIntro: false });
+  }
+  /** Opening or closing the guidance never answers or advances anything; it only cancels a pending advance.
+   *  The first time it is opened on Sweetness in a first real tasting it carries a one-time introduction. */
+  setGuideOpen(open: boolean) {
+    this.cancelAdvance();
+    const st = this.state;
+    const intro = open && st.focus === 'sweet' && !st.sample && this.journalNow().length === 0 && !readGuidePrefs().introSeen;
+    if (intro) writeGuidePrefs({ introSeen: true });
+    this.setState({ guideReady: true, guideOpen: open, guideIntro: intro, confirmK: null });
   }
   clearObs(k: SensKey) { this.cancelAdvance(); const obs = Object.assign({}, this.state.obs); obs[k] = null; this.setState({ obs: obs, confirmK: null }); }
   step(d: number) { this.cancelAdvance(); const K = this.keys(); const i = K.indexOf(this.state.focus); this.setState({ focus: K[(i + d + K.length) % K.length], confirmK: null }); }
@@ -921,6 +940,13 @@ export class AnosmiaLogic extends DCLogic<Props, State> {
       barAlign: fsD.duration ? 'center' : 'flex-end',
       prev: () => this.step(-1), next: () => this.step(1),
       openGuide: () => { this.cancelAdvance(); this.setState({ guide: true, confirmK: null }); },
+      /* The record screen's guidance bar and panel (app only: the demo keeps the prototype's How? sheet). */
+      guideBar: !!this.props.photos && scr === 'record',
+      showHow: !(this.props.photos && scr === 'record'),
+      guideOpen: st.guideOpen, guideIntro: st.guideIntro && st.focus === 'sweet',
+      guideIntroText: GUIDE_INTRO,
+      guideBarLabel: 'How to recognise ' + fsD.name.toLowerCase(),
+      toggleGuide: () => this.setGuideOpen(!st.guideOpen),
       closeGuide: () => this.setState({ guide: false }), guide: st.guide,
       dockPrimaryLabel: sheet ? 'Done' : (answered === 6 ? 'All six. Review tasting' : 'Review tasting'),
       dockPrimaryCls: 'press' + (!sheet && answered === 6 && st.confirmK === null ? ' ready' : ''),

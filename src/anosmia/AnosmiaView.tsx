@@ -167,7 +167,7 @@ export function AnosmiaView({ v, overlay }: { v: Vals; overlay?: ReactNode }) {
       {/* 3 · RECORD SENSATIONS (upper half; controls live in the dock) */}
       {v.isRecord ? (
         <>
-          <div className="fade scroll" style={{ position: "absolute", inset: "0 0 calc(348px + env(safe-area-inset-bottom, 0px)) 0", overflowY: "auto", padding: "8px 16px 14px", boxSizing: "border-box" }}>
+          <div className={v.guideBar ? "scroll guide-overview" : "fade scroll"} data-guide-open={v.guideBar && v.guideOpen ? "true" : "false"} inert={v.guideBar && v.guideOpen} style={{ position: "absolute", inset: v.guideBar ? "0 0 calc(392px + env(safe-area-inset-bottom, 0px)) 0" : "0 0 calc(348px + env(safe-area-inset-bottom, 0px)) 0", overflowY: "auto", padding: "8px 16px 14px", boxSizing: "border-box" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: "44px" }}>
               <button aria-label="Back to wine" onClick={v.changeWine} style={{ width: "44px", height: "44px", border: "0", background: "transparent", marginLeft: "-12px", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -1437,6 +1437,39 @@ export function AnosmiaView({ v, overlay }: { v: Vals; overlay?: ReactNode }) {
           </section>
         </>
       ) : null}
+      {/* GUIDANCE BAR AND PANEL (record screen, app only) */}
+      {v.guideBar ? (
+        <>
+          {/* Always mounted so it can slide and fade both ways (see .guide-panel); closed, it is hidden from sight and from assistive tech. */}
+          {(
+            <section id="guide-panel" role="region" aria-label={v.fs.guideAria} data-guide-panel="" data-open={v.guideOpen ? "true" : "false"} inert={!v.guideOpen} className="scroll guide-panel" tabIndex={-1} style={{ position: "absolute", left: "0", right: "0", top: "0", bottom: "calc(392px + env(safe-area-inset-bottom, 0px))", zIndex: "22", background: "#FBF6EA", overflowY: "auto", overscrollBehavior: "contain", padding: "16px 16px 18px", boxSizing: "border-box", display: "flex", flexDirection: "column", gap: "12px" }}>
+              {v.guideIntro ? (
+                <p data-guide-intro="" style={{ margin: "0", padding: "9px 12px", borderRadius: "10px", background: "#F2CF5B", fontSize: "13.5px", fontWeight: "600", lineHeight: "1.35" }}>{v.guideIntroText}</p>
+              ) : null}
+              <ol style={{ margin: "0", padding: "0", listStyle: "none", display: "flex", flexDirection: "column", gap: "10px" }}>
+                {v.fs.steps.map((st, i39) => (
+                  <Fragment key={i39}>
+                    <li style={{ display: "flex", gap: "12px", alignItems: "flex-start" }}>
+                      <span className="f-disp" aria-hidden="true" style={{ fontSize: "24px", fontWeight: "800", color: "#5A1427", width: "18px", lineHeight: "1", flex: "none" }}>{st.n}</span>
+                      <span style={{ fontSize: "15px", lineHeight: "1.4" }}>{st.t}</span>
+                    </li>
+                  </Fragment>
+                ))}
+              </ol>
+              <p data-guide-note="" style={{ margin: "0", padding: "10px 12px", borderRadius: "10px", border: "1.5px solid rgba(30,20,22,.35)", fontSize: "14px", lineHeight: "1.4", color: "#3E302D" }}>{v.fs.foot}</p>
+            </section>
+          )}
+          <button data-guide-bar="" aria-expanded={v.guideOpen} aria-controls="guide-panel" aria-label={v.guideOpen ? v.guideBarLabel + ". Hide guide" : v.guideBarLabel} onClick={v.toggleGuide} className="press guide-bar" style={{ position: "absolute", left: "0", right: "0", bottom: "calc(348px + env(safe-area-inset-bottom, 0px))", height: "44px", zIndex: "22", boxSizing: "border-box", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px", padding: "0 16px", border: "0", borderTop: "1.5px solid #1E1416", background: v.guideOpen ? "#1E1416" : "#F2CF5B", color: v.guideOpen ? "#FBF6EA" : "#1E1416", fontWeight: "700", fontSize: "14px", textAlign: "left" }}>
+            <span aria-hidden="true" style={{ minWidth: "0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{v.guideBarLabel.charAt(0).toUpperCase() + v.guideBarLabel.slice(1)}</span>
+            <span aria-hidden="true" className="f-mono" style={{ display: "flex", alignItems: "center", gap: "6px", flex: "none", fontSize: "10.5px", fontWeight: "500" }}>
+              {v.guideOpen ? "HIDE" : "SHOW"}
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" style={{ transform: v.guideOpen ? "rotate(180deg)" : "none", transition: "transform 420ms cubic-bezier(.22,.8,.2,1)" }}>
+                <path d="M6 15l6-6 6 6" />
+              </svg>
+            </span>
+          </button>
+        </>
+      ) : null}
       {/* THE THUMB DOCK (Record + summary editor share one control) */}
       {v.showDock ? (
         <>
@@ -1513,7 +1546,7 @@ export function AnosmiaView({ v, overlay }: { v: Vals; overlay?: ReactNode }) {
                 <p style={{ margin: "1px 0 0", fontSize: "14px", color: "#3E302D", lineHeight: "1.3" }}>{v.fs.q}</p>
               </div>
               <button onClick={v.clearCur} aria-label={v.fs.clearAria} disabled={v.clearDisabled} ref={css(v.clearStyle)}>Clear</button>
-              <button onClick={v.openGuide} aria-label={v.fs.guideAria} style={{ height: "44px", minWidth: "56px", padding: "0 12px", borderRadius: "22px", border: "1.5px solid #1E1416", background: "transparent", fontWeight: "650", fontSize: "13px", flex: "none" }}>How?</button>
+              {v.showHow ? <button onClick={v.openGuide} aria-label={v.fs.guideAria} style={{ height: "44px", minWidth: "56px", padding: "0 12px", borderRadius: "22px", border: "1.5px solid #1E1416", background: "transparent", fontWeight: "650", fontSize: "13px", flex: "none" }}>How?</button> : null}
             </div>
             {" "}
             <div role="group" aria-label={v.fs.levelAria} style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: "8px", marginTop: "12px" }}>

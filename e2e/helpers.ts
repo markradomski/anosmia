@@ -57,7 +57,16 @@ export async function databaseNames(page: Page) {
 }
 
 /** Open the app and wait until it has rendered (it loads IndexedDB before the first render). */
-export async function open(page: Page, path = '/') {
+export async function open(page: Page, path = '/', options: { freshGuide?: boolean } = {}) {
+  // The first time guidance is opened in a first tasting it carries a one-time introduction. Tests that are not about
+  // guidance start as a returning user who has seen it; guidance.spec.ts passes freshGuide to see the first-run behaviour.
+  if (!options.freshGuide) {
+    await page.addInitScript(() => {
+      try {
+        if (localStorage.getItem('anosmia.guide.introSeen') === null) { localStorage.setItem('anosmia.guide.introSeen', '1') }
+      } catch { /* storage unavailable */ }
+    })
+  }
   await page.goto(path)
   await expect(page.locator('.f-ui.grain')).toBeVisible()
 }

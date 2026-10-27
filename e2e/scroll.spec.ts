@@ -13,7 +13,9 @@ const geometry = (page: Page) => page.evaluate(() => {
   const scroller = document.querySelector('[data-active="true"]')!.closest('.scroll')!
   const view = scroller.getBoundingClientRect()
   const dock = document.querySelector('[data-dock]')!.getBoundingClientRect()
-  return { rowTop: row.top, rowBottom: row.bottom, viewTop: view.top, dockTop: dock.top, dockBottom: dock.bottom,
+  // On the recording screen the guidance bar sits between the overview and the dock; rows must clear it.
+  const edge = (document.querySelector('[data-guide-bar]') ?? document.querySelector('[data-dock]'))!.getBoundingClientRect()
+  return { rowTop: row.top, rowBottom: row.bottom, viewTop: view.top, dockTop: edge.top, dockBottom: dock.bottom,
     scrollTop: scroller.scrollTop, docScroll: document.scrollingElement!.scrollTop, innerHeight }
 })
 
@@ -68,7 +70,7 @@ for (const size of SIZES) {
       const finish = page.getByRole('button', { name: /^Finish: Unanswered/ })
       await finish.evaluate(el => {
         const scroller = el.closest('.scroll')!
-        const dockTop = document.querySelector('[data-dock]')!.getBoundingClientRect().top
+        const dockTop = (document.querySelector('[data-guide-bar]') ?? document.querySelector('[data-dock]'))!.getBoundingClientRect().top
         scroller.scrollTop += el.getBoundingClientRect().top - (dockTop - 20)
       })
       await finish.evaluate(el => (el as HTMLElement).click())
@@ -107,7 +109,8 @@ for (const size of SIZES) {
 }
 
 test('no movement when the active row is already visible', async ({ page }) => {
-  await page.setViewportSize({ width: 360, height: 640 })
+  // 740 px tall: with the 44 px guidance bar the overview at 640 px is too short to show Acidity unscrolled.
+  await page.setViewportSize({ width: 360, height: 740 })
   await open(page)
   await tap(page, 'Start tasting')
   await tap(page, /Taste without naming/)

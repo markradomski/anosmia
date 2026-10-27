@@ -29,11 +29,32 @@ export function Anosmia({ persistence, ...props }: Props & { persistence?: Persi
   // Previous/Next, tapping a row) or the record screen opens. Instant on arrival, smooth within it.
   const activeRow = st.screen === 'record' ? 'record:' + st.focus : st.screen === 'abRecord' ? 'ab:' + st.ab?.focus : null
   const lastScreen = useRef<string | null>(null)
+  // Record-screen guidance: choose its starting state as the screen opens, before it paints.
+  useLayoutEffect(() => {
+    if (photos && st.screen === 'record' && !st.guideReady) logic.resolveGuide()
+  }, [logic, photos, st.screen, st.guideReady])
+  // The one-time introduction belongs to Sweetness only; moving on retires it.
+  useLayoutEffect(() => {
+    if (st.guideIntro && st.focus !== 'sweet') logic.setState({ guideIntro: false })
+  }, [logic, st.guideIntro, st.focus])
+  // Each sensation's guidance starts from its top.
+  useLayoutEffect(() => {
+    const panel = document.querySelector<HTMLElement>('[data-guide-panel]')
+    if (panel) panel.scrollTop = 0
+  }, [st.focus, st.guideOpen, st.screen])
+  // Escape hides the guidance without answering or advancing anything.
+  useEffect(() => {
+    if (!(photos && st.screen === 'record' && st.guideOpen)) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !st.camera) logic.setGuideOpen(false) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [logic, photos, st.screen, st.guideOpen, st.camera])
+  const guideKey = st.guideOpen ? 'open' : 'closed'
   useLayoutEffect(() => {
     const screen = activeRow && activeRow.split(':')[0]
     if (activeRow) revealActiveRow(document, lastScreen.current === screen)
     lastScreen.current = screen
-  }, [activeRow])
+  }, [activeRow, guideKey])
   useEffect(() => {
     if (!activeRow) return
     // The usable height can change under the user (browser toolbars, rotation).
