@@ -1355,6 +1355,7 @@ export function AnosmiaView({ v, overlay }: { v: Vals; overlay?: ReactNode }) {
             }}
           >
             <div
+              data-pin="journal"
               style={{
                 display: "flex",
                 justifyContent: "space-between",
@@ -1408,6 +1409,7 @@ export function AnosmiaView({ v, overlay }: { v: Vals; overlay?: ReactNode }) {
               </span>
             </div>{" "}
             <div
+              data-pin-rule=""
               style={{
                 height: "1.5px",
                 background: "#1E1416",

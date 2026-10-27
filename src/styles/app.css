@@ -38,6 +38,21 @@ body,
 .app-shell [data-pin="wide"] {
   --pin-x: 20px;
 }
+/*
+ * The Cellar Book pins its header row and the rule beneath it. The row's paper reaches down to the
+ * rule (its 6 px top margin, cancelled by a matching negative margin so nothing moves) and the rule
+ * pins just below: 8 px padding + 44 px row + 6 px gap, less the 8 px the sticky offset starts inside.
+ */
+.app-shell [data-pin="journal"] {
+  padding-bottom: 6px;
+  margin-bottom: -6px;
+}
+.app-shell [data-pin-rule] {
+  position: sticky;
+  top: 50px;
+  z-index: 1;
+}
+
 /* A field focused with the keyboard open is scrolled into view below the pinned row (8 + 44 px). */
 .app-shell .scroll:has(> [data-pin]) {
   scroll-padding-top: 52px;
