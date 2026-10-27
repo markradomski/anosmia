@@ -12,14 +12,17 @@ const geometry = (page: Page) => page.evaluate(() => {
   const row = document.querySelector('[data-active="true"]')!.getBoundingClientRect()
   const scroller = document.querySelector('[data-active="true"]')!.closest('.scroll')!
   const view = scroller.getBoundingClientRect()
+  // The pinned top row (Back, progress) covers the top of the overview; rows must clear it too.
+  const pin = scroller.querySelector('[data-pin]')
+  const viewTop = pin ? Math.max(view.top, pin.getBoundingClientRect().bottom) : view.top
   const dock = document.querySelector('[data-dock]')!.getBoundingClientRect()
   // On the recording screen the guidance bar sits between the overview and the dock; rows must clear it.
   const edge = (document.querySelector('[data-guide-bar]') ?? document.querySelector('[data-dock]'))!.getBoundingClientRect()
-  return { rowTop: row.top, rowBottom: row.bottom, viewTop: view.top, dockTop: edge.top, dockBottom: dock.bottom,
+  return { rowTop: row.top, rowBottom: row.bottom, viewTop, dockTop: edge.top, dockBottom: dock.bottom,
     scrollTop: scroller.scrollTop, docScroll: document.scrollingElement!.scrollTop, innerHeight }
 })
 
-/** Fully visible: not above the overview and not behind the dock. */
+/** Fully visible: not above the overview (or under its pinned top row) and not behind the dock. */
 const activeRowVisible = async (page: Page) => {
   const g = await geometry(page)
   return g.rowTop >= g.viewTop - 0.5 && g.rowBottom <= g.dockTop + 0.5
@@ -143,3 +146,41 @@ test('answer timing is unchanged: confirmation for ~420 ms, then advance', async
   await page.waitForTimeout(400)
   await expect(page.locator('section[data-dock] h2')).toHaveText('Acidity')
 })
+
+// The compact top row (Back, tasting progress) stays pinned while the overview scrolls; the large
+// heading scrolls away with the rows. Phone sizes from the request: 360×740, 390×844, 415×915.
+for (const size of [{ width: 360, height: 740 }, { width: 390, height: 844 }, { width: 415, height: 915 }]) {
+  test(`${size.width}×${size.height}: Back and progress stay visible and usable while the overview scrolls`, async ({ page }) => {
+    await page.setViewportSize(size)
+    await open(page)
+    await toFinish(page)
+    await expectActiveVisible(page)
+    // Scroll the overview all the way down, as a thumb would.
+    await page.locator('[data-pin]').evaluate(pin => { const s = pin.closest('.scroll')!; s.scrollTop = s.scrollHeight })
+    await settle(page)
+    const g = await page.evaluate(() => {
+      const pin = document.querySelector('[data-pin]')!
+      const scroller = pin.closest('.scroll')!
+      const back = document.querySelector('[aria-label="Back to wine"]')!.getBoundingClientRect()
+      const heading = [...scroller.querySelectorAll('h1')].find(h => h.textContent === 'What can you feel?')!
+      return {
+        scrolled: scroller.scrollTop, scrollerTop: scroller.getBoundingClientRect().top,
+        pin: pin.getBoundingClientRect().toJSON(), backTop: back.top,
+        // What a tap at Back's centre would actually hit: the button, not a row scrolled beneath it.
+        backHit: document.elementFromPoint(back.left + back.width / 2, back.top + back.height / 2)?.closest('button')?.getAttribute('aria-label'),
+        headingPosition: getComputedStyle(heading).position, headingBottom: heading.getBoundingClientRect().bottom,
+      }
+    })
+    // The row sits exactly where it starts out, at the top of the screen.
+    expect(g.pin.top).toBeCloseTo(g.scrollerTop, 0)
+    expect(g.backTop).toBeCloseTo(g.scrollerTop + 8, 0)
+    expect(g.backHit).toBe('Back to wine')
+    await expect(page.getByText(/Tasting No\. \d+ · 5 of 6 answered/)).toBeInViewport()
+    // Only the compact row is pinned: the heading scrolls away when there is anything to scroll.
+    expect(g.headingPosition).toBe('static')
+    if (g.scrolled > 60) expect(g.headingBottom).toBeLessThanOrEqual(g.pin.bottom)
+    // Back still works from the scrolled overview.
+    await tap(page, 'Back to wine')
+    await expect(page.locator('[data-pin]')).toHaveCount(0)
+  })
+}

@@ -14,10 +14,13 @@ export function revealActiveRow(root: ParentNode, animate: boolean) {
   // The overview already ends where the dock begins; measure the dock too, in case they ever differ.
   const dock = root.querySelector<HTMLElement>('[data-dock]')
   const visibleBottom = Math.min(view.bottom, dock ? dock.getBoundingClientRect().top : view.bottom)
+  // The pinned top row (Back, progress) covers the top of the overview; rows must land below it.
+  const pin = scroller.querySelector<HTMLElement>('[data-pin]')
+  const visibleTop = pin ? Math.max(view.top, pin.getBoundingClientRect().bottom) : view.top
   const box = row.getBoundingClientRect()
 
   let delta = 0
-  if (box.top < view.top) delta = box.top - view.top - MARGIN_PX
+  if (box.top < visibleTop) delta = box.top - visibleTop - MARGIN_PX
   else if (box.bottom > visibleBottom) delta = box.bottom - visibleBottom + MARGIN_PX
   if (!delta) return
 

@@ -16,6 +16,22 @@ body,
   padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) 0 env(safe-area-inset-left, 0px);
 }
 
+/*
+ * Record screen: the compact top row (Back, tasting progress) stays put while the sensation overview
+ * scrolls under it. The negative margins and matching padding let its paper reach the overview's edges
+ * without moving its contents; the grain repeats the frame's so the pinned strip is indistinguishable.
+ */
+.app-shell [data-pin] {
+  position: sticky;
+  top: -8px; /* sticky offsets start inside the overview's 8 px top padding */
+  z-index: 1;
+  margin: -8px -16px 0;
+  padding: 8px 16px 0;
+  background-color: #F5ECD7;
+  background-image: radial-gradient(rgba(30, 20, 22, 0.045) 1px, transparent 1.2px);
+  background-size: 5px 5px;
+}
+
 /* On short screens the welcome column scrolls instead of squashing its illustration under the headline. */
 .welcome-fill {
   overflow-y: auto;

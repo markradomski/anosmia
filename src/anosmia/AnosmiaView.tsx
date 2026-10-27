@@ -679,6 +679,7 @@ export function AnosmiaView({ v, overlay }: { v: Vals; overlay?: ReactNode }) {
             }}
           >
             <div
+              data-pin=""
               style={{
                 display: "flex",
                 justifyContent: "space-between",
