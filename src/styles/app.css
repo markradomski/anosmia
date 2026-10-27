@@ -17,19 +17,30 @@ body,
 }
 
 /*
- * Record screen: the compact top row (Back, tasting progress) stays put while the sensation overview
- * scrolls under it. The negative margins and matching padding let its paper reach the overview's edges
- * without moving its contents; the grain repeats the frame's so the pinned strip is indistinguishable.
+ * Every screen with a Back button: its compact top row (Back, plus any progress or title text) stays
+ * put while the screen's content scrolls under it. Each of those screens scrolls in one container with
+ * 8 px top padding and --pin-x side padding, whose first child is the row. The negative margins and
+ * matching padding let the row's paper reach the container's edges without moving its contents; the
+ * grain repeats the frame's so the pinned strip is indistinguishable.
  */
 .app-shell [data-pin] {
+  --pin-x: 16px;
   position: sticky;
-  top: -8px; /* sticky offsets start inside the overview's 8 px top padding */
+  top: -8px; /* sticky offsets start inside the container's 8 px top padding */
   z-index: 1;
-  margin: -8px -16px 0;
-  padding: 8px 16px 0;
+  margin: -8px calc(-1 * var(--pin-x)) 0;
+  padding: 8px var(--pin-x) 0;
   background-color: #F5ECD7;
   background-image: radial-gradient(rgba(30, 20, 22, 0.045) 1px, transparent 1.2px);
   background-size: 5px 5px;
+}
+/* Find wine's container has 20 px side padding. */
+.app-shell [data-pin="wide"] {
+  --pin-x: 20px;
+}
+/* A field focused with the keyboard open is scrolled into view below the pinned row (8 + 44 px). */
+.app-shell .scroll:has(> [data-pin]) {
+  scroll-padding-top: 52px;
 }
 
 /* On short screens the welcome column scrolls instead of squashing its illustration under the headline. */

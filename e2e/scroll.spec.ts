@@ -181,6 +181,6 @@ for (const size of [{ width: 360, height: 740 }, { width: 390, height: 844 }, { 
     if (g.scrolled > 60) expect(g.headingBottom).toBeLessThanOrEqual(g.pin.bottom)
     // Back still works from the scrolled overview.
     await tap(page, 'Back to wine')
-    await expect(page.locator('[data-pin]')).toHaveCount(0)
+    await expect(page.getByRole('heading', { name: 'Which wine is it?' })).toBeVisible()
   })
 }
